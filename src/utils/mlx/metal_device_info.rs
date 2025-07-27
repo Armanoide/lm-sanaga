@@ -1,6 +1,6 @@
-use std::{ffi::CStr, os::raw::c_char};
-use mlx_sys::{mlx_metal_device_info};
 use crate::error::{Error, Result};
+use mlx_sys::mlx_metal_device_info;
+use std::{ffi::CStr, os::raw::c_char};
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct MetalDeviceInfoRaw {
@@ -36,16 +36,11 @@ impl TryFrom<MetalDeviceInfoRaw> for MetalDeviceInfo {
     }
 }
 
-
 pub fn metal_device_info() -> Result<MetalDeviceInfo> {
-    // Call unsafe FFI function internally
     let raw = unsafe { mlx_metal_device_info() };
 
-    // Convert from the raw C struct to the Rust wrapper
-    let raw_info: MetalDeviceInfoRaw = unsafe {
-        std::ptr::read(&raw as *const _ as *const MetalDeviceInfoRaw)
-    };
+    let raw_info: MetalDeviceInfoRaw =
+        unsafe { std::ptr::read(&raw as *const _ as *const MetalDeviceInfoRaw) };
 
-    MetalDeviceInfo::try_from(raw_info)
-        .map_err(|e| Error::MlxFunctionLoadFailure(e.to_string() ))
+    MetalDeviceInfo::try_from(raw_info).map_err(|e| Error::MlxFunctionLoadFailure(e.to_string()))
 }

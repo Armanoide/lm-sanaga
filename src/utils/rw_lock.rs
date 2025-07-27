@@ -1,5 +1,5 @@
-use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use crate::error::{Error, Result};
+use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 pub trait RwLockExt<T> {
     fn read_lock(&self, context: &str) -> Result<RwLockReadGuard<'_, T>>;

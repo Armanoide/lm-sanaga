@@ -1,19 +1,20 @@
-use std::rc::Rc;
-use std::path::Path;
-use std::sync::{Arc, RwLock};
-use walkdir::WalkDir;
 use crate::config::config::Config;
 use crate::config::config_model::{ConfigModel, ConfigModelCommon};
-use crate::model::weight::Weight;
 use crate::conversation::Conversation;
-use crate::factory::model::create_model_instance;
-use crate::generator::stream_response::StreamResponse;
-use crate::tokenizer::tokenizer::Tokenizer;
-use crate::model::model::{Model};
 use crate::error::{Error, Result};
+use crate::factory::model::create_model_instance;
+use crate::model::model::Model;
 use crate::model::model_kind::ModelKind;
+use crate::model::weight::Weight;
 use crate::quantized::Quantize;
+use crate::token::token_stream_manager::TokenStreamManager;
+use crate::tokenizer::tokenizer::Tokenizer;
 use crate::utils::rw_lock::RwLockExt;
+use std::path::Path;
+use std::rc::Rc;
+use std::sync::{Arc, RwLock};
+use walkdir::WalkDir;
+
 pub struct ModelRuntime {
     pub name: String,
     pub model_path: String,
@@ -27,7 +28,7 @@ impl ModelRuntime {
     pub fn load_with_path(root_path: &str) -> Result<ModelRuntime> {
         let path = Path::new(&root_path);
         if !path.exists() {
-            return Err(Error::ModelPathNotFound);
+            return Err(Error::ModelPathNotFound(path.display().to_string()));
         }
 
         let model_path = Self::find_model_path_from_root(&root_path)?;
@@ -47,11 +48,9 @@ impl ModelRuntime {
         })
     }
 
-    fn set_name(config_model: &ConfigModel) -> String{
+    fn set_name(config_model: &ConfigModel) -> String {
         match config_model {
-            ConfigModel::LLaMA(llama_config) => {
-                llama_config.get_name()
-            }
+            ConfigModel::LLaMA(llama_config) => llama_config.get_name(),
         }
     }
 
@@ -64,17 +63,17 @@ impl ModelRuntime {
                         if let Some(parent) = path.parent() {
                             return Ok(parent.display().to_string());
                         } else {
-                            break
+                            break;
                         }
                     }
                 }
             }
         }
-        Err(Error::RootModelPathNotFound)
+        Err(Error::RootModelPathNotFound(root_path.to_string()))
     }
 
     pub fn routine_model(&mut self) -> Result<()> {
-        if let (Some(box_model), Some(weight))= (&self.model, &mut self.weight) {
+        if let (Some(box_model), Some(weight)) = (&self.model, &mut self.weight) {
             let context = "reading model to sanitize";
             box_model.write_lock(context)?.sanitize(weight);
             match &*self.config.model {
@@ -96,17 +95,13 @@ impl ModelRuntime {
         Ok(())
     }
 
-    pub fn generate_text(&mut self, conversation: &Conversation) -> Result<()> {
-        if let (Some( tokenizer), Some(model)) = (&self.tokenizer, &self.model){
+    pub fn generate_text(&self, conversation: &Conversation) -> Result<()> {
+        if let (Some(tokenizer), Some(model)) = (&self.tokenizer, &self.model) {
             let (inputs, _) = tokenizer.apply_chat_template(conversation)?;
             let prompt = tokenizer.encode_prompt(inputs)?;
-            // Arc<RwLock<ModelKind>>, tokenizer: Rc<Tokenizer>
-            let mut sr = StreamResponse::new(model.clone(), tokenizer.clone());
+            let mut sr = TokenStreamManager::new(model.clone(), tokenizer.clone());
             let _ = sr.generate_text(prompt);
-            //let test = generator.generate2()?;
-            //println!("{:?}", test);
         }
         Ok(())
     }
 }
-

@@ -1,17 +1,18 @@
+use crate::config::config::Config;
+use crate::error::{Error, Result};
+use crate::utils::d_type::DTypeExt;
+use crate::utils::string::find_json_object_end;
+use glob::glob;
+use log::{debug, error};
+use memmap2::MmapOptions;
+use mlx_rs::{Array, Dtype};
+use serde::Deserialize;
 use std::collections::HashMap;
+use std::ffi::c_void;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
-use glob::glob;
-use crate::error::{Error, Result};
 use std::vec::Vec;
-use serde::Deserialize;
-use mlx_rs::{Array, Dtype};
-use crate::utils::string::find_json_object_end;
-use crate::utils::d_type::DTypeExt;
-use std::ffi::c_void;
-use log::{debug, error};
-use crate::config::config::Config;
 
 static HEADER_MAX_SAFETENSORS: usize = 100_000_000;
 static HEADER_OFFSET_SAFETENSORS: usize = 8;
@@ -40,7 +41,7 @@ pub struct Tensor {
     pub size: u64,
     pub dtype: Dtype,
     pub shape: Vec<i32>,
-    pub data: Array
+    pub data: Array,
 }
 pub struct Metadata {
     pub format: Option<String>,
@@ -50,71 +51,93 @@ pub struct Weight {
     pub tensors: HashMap<String, Tensor>,
 }
 
-
 impl Weight {
     pub fn new(config: &Config) -> Result<Self> {
         let weights_files = Weight::find_model_files(&config.root_path)?;
         Weight::load_weights(&weights_files)
     }
 
-    fn read_safetensors_header(file_path: &str, buffer: &mut Vec<u8>) -> Result<(WeightJSON, usize)> {
+    fn read_safetensors_header(
+        file_path: &str,
+        buffer: &mut Vec<u8>,
+    ) -> Result<(WeightJSON, usize)> {
         let mut file = File::open(file_path)?;
         let mut len_bytes = [0u8; HEADER_OFFSET_SAFETENSORS];
 
         file.read_exact(&mut len_bytes)?;
         file.read_exact(buffer)?;
 
-        let header_str_with_noise  = String::from_utf8_lossy(&buffer).trim_end().to_string();
+        let header_str_with_noise = String::from_utf8_lossy(&buffer).trim_end().to_string();
         let real_size_header = find_json_object_end(&header_str_with_noise);
 
         match real_size_header {
             Some(size_header) => {
                 let buffer_slice = &buffer[..size_header];
-                let json_str = String::from_utf8_lossy(&buffer_slice).trim_end().to_string();
+                let json_str = String::from_utf8_lossy(&buffer_slice)
+                    .trim_end()
+                    .to_string();
                 let json: WeightJSON = serde_json::from_str(&json_str)?;
                 Ok((json, size_header))
-            },
-            None => {
-                Err(Error::SafetensorsHeaderReadError)
             }
+            None => Err(Error::SafetensorsHeaderReadError),
         }
     }
 
-
-    fn read_safetensors_weights(file_path: &str, weights_json: WeightJSON, offset_header: usize) -> Result<HashMap<String, Tensor>> {
+    fn read_safetensors_weights(
+        file_path: &str,
+        weights_json: WeightJSON,
+        offset_header: usize,
+    ) -> Result<HashMap<String, Tensor>> {
         let mut weights: HashMap<String, Tensor> = HashMap::new();
 
-        let mut file = File::open(file_path)
-            .map_err(|_| Error::FileOpenError(file_path.to_owned()))?;
+        let file = File::open(file_path).map_err(|_| Error::FileOpenError(file_path.to_owned()))?;
+
+        // Memory-map the entire file
+        let mmap = unsafe { MmapOptions::new().map(&file)? };
+
+        let base_offset = offset_header + HEADER_OFFSET_SAFETENSORS;
 
         for (name, weight) in weights_json.tensors {
-
             let dtype = Dtype::from_string_unsafe(&weight.dtype);
             let shape = weight.shape.clone();
-            let data_offsets = weight.data_offsets.clone();
-            let base_offset = offset_header + HEADER_OFFSET_SAFETENSORS;
+            let data_offsets = weight.data_offsets;
             let offset_start = base_offset + data_offsets[0] as usize;
             let offset_end = base_offset + data_offsets[1] as usize;
-            let size = offset_end - offset_start;
-            let mut buffer = vec![0u8; size];
 
-            file.rewind()?;
-            file.seek(SeekFrom::Start(offset_start as u64))?;
-            file.read_exact(&mut buffer)?;
+            if offset_end > mmap.len() {
+                return Err(Error::SafetensorsOutOfBounds {
+                    tensor: name.clone(),
+                    start: offset_start,
+                    end: offset_end,
+                    file_size: mmap.len(),
+                });
+            }
 
-            debug!("Loading tensor '{}': dtype={:?} dtype={:?} shape={:?} size={} bytes",
-                name, dtype, weight.dtype, shape, size);
+            let data_slice = &mmap[offset_start..offset_end];
+
+            debug!(
+                "Loading tensor '{}': dtype={:?} shape={:?} size={} bytes",
+                name,
+                dtype,
+                shape,
+                offset_end - offset_start
+            );
 
             let data = unsafe {
-                Array::from_raw_data(
-                    buffer.as_ptr() as *const c_void,
-                    &shape,
-                    dtype,
-                )
+                Array::from_raw_data(data_slice.as_ptr() as *const c_void, &shape, dtype)
             };
 
-            weights.insert(name, Tensor { data, shape, dtype, size: size as u64 });
+            weights.insert(
+                name,
+                Tensor {
+                    data,
+                    shape,
+                    dtype,
+                    size: (offset_end - offset_start) as u64,
+                },
+            );
         }
+
         Ok(weights)
     }
 
@@ -126,18 +149,20 @@ impl Weight {
 
         for file_path in files {
             // Read header into buffer
-            let (weight_json, header_size) = Self::read_safetensors_header(file_path, &mut buffer_header)?;
+            let (weight_json, header_size) =
+                Self::read_safetensors_header(file_path, &mut buffer_header)?;
 
             total_expected_tensors += weight_json.tensors.len();
 
             let metadata_format = weight_json.metadata.as_ref().and_then(|m| m.format.clone());
 
-            let tensors =  match Self::read_safetensors_weights(file_path, weight_json, header_size) {
+            let tensors = match Self::read_safetensors_weights(file_path, weight_json, header_size)
+            {
                 Ok(t) => Ok(t),
                 Err(e) => {
                     error!("Failed to read weights from {}: {}", file_path, e);
                     Err(e)
-                },
+                }
             }?;
 
             list.push(Weight {
@@ -153,18 +178,21 @@ impl Weight {
         if result_weights.tensors.is_empty() {
             return Err(Error::NoTensorInModelFile);
         } else if total_expected_tensors != result_weights.tensors.len() {
-            return Err(Error::TensorSizeMismatch(total_expected_tensors, result_weights.tensors.len()));
+            return Err(Error::TensorSizeMismatch(
+                total_expected_tensors,
+                result_weights.tensors.len(),
+            ));
         }
         Ok(result_weights)
     }
 
     fn merge_weights(list: Vec<Weight>) -> Weight {
         let mut merged_tensors = HashMap::new();
-        let mut merged_metadata = Metadata { format: None } ;
+        let mut merged_metadata = Metadata { format: None };
 
         for weight in list {
             // Take the first non-None metadata
-            if  merged_metadata.format.is_none() {
+            if merged_metadata.format.is_none() {
                 merged_metadata = weight.metadata;
             }
 
@@ -186,7 +214,7 @@ impl Weight {
 
         let result: Vec<String> = paths_results
             .filter_map(|i| i.ok())
-            .map(|p| {p.display().to_string()})
+            .map(|p| p.display().to_string())
             .collect();
 
         if result.is_empty() {
@@ -196,12 +224,12 @@ impl Weight {
     }
 
     fn find_model_files(model_path: &str) -> Result<Vec<String>> {
-        match Weight::find_model(model_path,&"model*.safetensors")  {
+        match Weight::find_model(model_path, &"model*.safetensors") {
             Ok(files) => Ok(files),
             Err(_) => {
                 // Sometimes model files can be in weight
-                Weight::find_model(model_path,&"weight*.safetensors")
-            },
+                Weight::find_model(model_path, &"weight*.safetensors")
+            }
         }
     }
 }

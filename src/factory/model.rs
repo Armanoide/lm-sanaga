@@ -1,15 +1,13 @@
-use std::rc::Rc;
-use std::sync::{Arc, RwLock};
 use crate::config::config::Config;
 use crate::config::config_model::ConfigModel;
-use crate::model::models::llama::llama::ModelLLama;
 use crate::error::Result;
 use crate::model::model_kind::ModelKind;
+use crate::model::models::llama::llama::ModelLLama;
+use std::rc::Rc;
+use std::sync::{Arc, RwLock};
 //use crate::models::model_mistral::ModelMistral;
 
-pub fn create_model_instance(
-    config: Rc<Config>,
-) -> Result<Arc<RwLock<ModelKind>>> {
+pub fn create_model_instance(config: Rc<Config>) -> Result<Arc<RwLock<ModelKind>>> {
     let model = &config.model;
     match &**model {
         ConfigModel::LLaMA(llama_config) => {

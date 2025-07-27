@@ -1,5 +1,5 @@
-use serde::Deserialize;
 use crate::config::config_model::ConfigModelCommon;
+use serde::Deserialize;
 
 #[allow(unused_variables)]
 #[derive(Debug, Deserialize, Clone)]
@@ -47,12 +47,12 @@ pub struct LLaMARopeScalingConfig {
     pub rope_type: String,
 }
 
-impl ConfigModelCommon for LLaMAConfig  {
-    fn get_name(&self,) -> String {
+impl ConfigModelCommon for LLaMAConfig {
+    fn get_name(&self) -> String {
         let model_type = if let Some(rope_scaling) = &self.rope_scaling {
             match rope_scaling.rope_type.as_str() {
                 "llama3" => "llama-3.1",
-                other => other
+                other => other,
             }
         } else {
             "unknown"
@@ -71,6 +71,12 @@ impl ConfigModelCommon for LLaMAConfig  {
             "fp16"
         };
 
-        format!("models-{}-{}-{}{}", model_type, size, "Instruct", format!("-{}", quant))
+        format!(
+            "models-{}-{}-{}{}",
+            model_type,
+            size,
+            "Instruct",
+            format!("-{}", quant)
+        )
     }
 }

@@ -1,30 +1,41 @@
-use std::sync::{Arc, RwLock};
-use crossbeam::channel::Sender;
-use mlx_rs::{Array};
-use mlx_rs::ops::{concatenate};
-use mlx_rs::ops::indexing::{argmax_axis, IndexOp};
-use mlx_rs::transforms::compile::clear_cache;
-use rayon::prelude::*;
+use crate::cache::k_v_cache::ArcCacheList;
+use crate::error::Result;
 use crate::factory::k_v_cache::create_prompt_cache;
 use crate::model::model::Model;
 use crate::model::model_kind::ModelKind;
-use crate::error::{Result};
-use crate::cache::k_v_cache::{SNCacheList};
-use crate::generator::generated_token_info::GeneratedTokenInfo;
+use crate::token::token_generated_info::TokenGeneratedInfo;
+use crate::utils::mlx::metal_device_info::metal_device_info;
+use crate::utils::mlx::metal_is_available::metal_is_available;
+use crate::utils::mlx::set_wired_limit::set_wired_limit;
+use crossbeam::channel::Sender;
+use log::info;
+use mlx_rs::Array;
+use mlx_rs::ops::concatenate;
+use mlx_rs::ops::indexing::{IndexOp, argmax_axis};
+use mlx_rs::transforms::async_eval;
+use mlx_rs::transforms::compile::clear_cache;
+use rayon::prelude::*;
+use std::sync::{Arc, RwLock};
 
-pub type SamplerFn = Arc<dyn Fn(&Array) -> Result<Array> + Send + Sync> ;
+pub type SamplerFn = Arc<dyn Fn(&Array) -> Result<Array> + Send + Sync>;
 
-type LogitsProcessor = Arc<dyn Fn(&Array, &Array) -> Result<Array> + Send + Sync> ;
-use crate::generator::stream_buffer::StreamingBuffer;
+type LogitsProcessor = Arc<dyn Fn(&Array, &Array) -> Result<Array> + Send + Sync>;
 use crate::utils::rw_lock::RwLockExt;
 
 pub struct TokenGeneratorOpts {
     temperature: Option<f32>,
+    max_tokens: Option<usize>,
+    top_k: Option<usize>,
+    top_p: Option<f32>,
+    repetition_penalty: Option<f32>,
+    presence_penalty: Option<f32>,
+    frequency_penalty: Option<f32>,
+    prefill_step_size: Option<usize>,
 }
 
 pub struct TokenGenerator {
     model: Arc<RwLock<ModelKind>>,
-    pub cache: SNCacheList,
+    pub cache: ArcCacheList,
     sampler: SamplerFn,
     logits_processors: Vec<LogitsProcessor>,
     prefill_step_size: i32,
@@ -34,30 +45,32 @@ pub struct TokenGenerator {
     eot_ids: Vec<u32>,
     stop: bool,
     prompt_len: usize,
-    b_tokens: StreamingBuffer,
     options: Option<TokenGeneratorOpts>,
-    token_sender: Option<Sender<GeneratedTokenInfo>>
-    //pub quantize_cache_fn: Box<dyn Fn(&mut Cache) + 'a>,
-    //pub prompt_progress_callback: Box<dyn Fn(usize, usize) + 'a>,
+    token_sender: Option<Sender<TokenGeneratedInfo>>, //pub quantize_cache_fn: Box<dyn Fn(&mut Cache) + 'a>,
+                                                      //pub prompt_progress_callback: Box<dyn Fn(usize, usize) + 'a>,
 }
 
 impl TokenGenerator {
-    pub fn new(model: Arc<RwLock<ModelKind>>, prompt: Vec<u32>, eot_ids: Vec<u32>, token_sender: Option<Sender<GeneratedTokenInfo>>, ) -> Result<TokenGenerator> {
-        let default_sampler: SamplerFn = Arc::new(|x: &Array| {
-            Ok(argmax_axis(&x, -1, false)?)
-        });
+    pub fn new(
+        model: Arc<RwLock<ModelKind>>,
+        prompt: Vec<u32>,
+        eot_ids: Vec<u32>,
+        token_sender: Option<Sender<TokenGeneratedInfo>>,
+    ) -> Result<TokenGenerator> {
+        let default_sampler: SamplerFn = Arc::new(|x: &Array| Ok(argmax_axis(&x, -1, false)?));
         let max_tokens = 10000000;
         let prompt_len = prompt.len();
         let prompt = Array::from_slice(prompt.as_slice(), &[prompt_len as i32]);
-        let context = "reading model to create a prompt cache";
-        let cache = create_prompt_cache(&*model.read_lock(context)?);
-
+        let cache = {
+            let context = "reading model to create a prompt cache";
+            create_prompt_cache(&*model.read_lock(context)?)
+        };
         Ok(TokenGenerator {
             token_sender,
             cache,
             model: model.clone(),
             max_tokens,
-            prefill_step_size: 250,
+            prefill_step_size: 5, //250,
             logits_processors: Vec::new(),
             tokens: None,
             prompt_len,
@@ -65,26 +78,34 @@ impl TokenGenerator {
             prompt,
             eot_ids,
             stop: false,
-            b_tokens: StreamingBuffer::new(),
             options: None,
         })
     }
 
-    fn model_call(&mut self, input_prompt: &Array, input_embeddings: Option<&Array>) -> Result<Array> {
-            /*if let Some(emb) = input_embeddings {
-                model.forward_with_embeddings(prompt, emb, &prompt_cache)
-            } else {
-                model.forward(prompt, &prompt_cache)
-            }*/
+    fn model_call(
+        &mut self,
+        input_prompt: &Array,
+        input_embeddings: Option<&Array>,
+    ) -> Result<Array> {
+        /*if let Some(emb) = input_embeddings {
+            model.forward_with_embeddings(prompt, emb, &prompt_cache)
+        } else {
+            model.forward(prompt, &prompt_cache)
+        }*/
         let context = "read model for forwarding";
-        let result = self.model
-            .write_lock(context)?
-            .forward_model(&input_prompt, None, Option::from(self.cache.clone()))?;
+        let result = self.model.write_lock(context)?.forward_model(
+            &input_prompt,
+            None,
+            Option::from(self.cache.clone()),
+        )?;
         Ok(result)
     }
 
-    fn step(&mut self, input_tokens: &Array, input_embeddings: Option<&Array>) -> Result<(Array, Array)>{
-
+    fn step(
+        &mut self,
+        input_tokens: &Array,
+        input_embeddings: Option<&Array>,
+    ) -> Result<(Array, Array)> {
         let input_tokens_batched = input_tokens.flatten(None, None)?.expand_dims(0)?;
 
         let input_embeds_batched = if let Some(emb) = input_embeddings {
@@ -93,7 +114,10 @@ impl TokenGenerator {
             None
         };
 
-        let mut logits = self.model_call(&input_tokens_batched, None/*input_embeds_batched.as_ref()*/)?;
+        let mut logits = self.model_call(
+            &input_tokens_batched,
+            None, /*input_embeds_batched.as_ref()*/
+        )?;
         logits = logits.index((.., -1, ..));
 
         if !self.logits_processors.is_empty() {
@@ -119,13 +143,42 @@ impl TokenGenerator {
         Ok(result)
     }
 
-    pub fn generate(&mut self, input_embeddings: Option<&Array>, ) -> Result<()> {
+    fn weird_limit(&self) -> Result<()> {
+        println!("//metal_is_available= {}", metal_is_available()?);
+        if metal_is_available()? {
+            let model_bytes = {
+                let context = "reading n_bytes of the model";
+                self.model.read_lock(context)?.get_model_bytes()
+            };
+            println!("//model_bytes= {:?}", model_bytes);
+            let device_info = metal_device_info()?;
+            println!("{:?}", device_info);
+            let max_recommended_size = device_info.max_recommended_working_set_size;
+            if model_bytes > (0.9 * (max_recommended_size as f64)) as u64 {
+                println!("//ici");
+                let model_mb = model_bytes / 1 << 20;
+                let max_rec_mb = max_recommended_size / 1 << 20;
+                //let old_limit = set_wired_limit(max_recommended_size)?;
+            }
+        }
+        //synchron
+        Ok(())
+    }
+
+    pub fn generate(&mut self, input_embeddings: Option<&Array>) -> Result<()> {
         let total_prompt_tokens = self.prompt.shape()[0];
         let mut prompt_processed_tokens = 0;
         let prefill_step_size = 2048;
         let mut prompt_input = self.prompt.clone();
+
+        match self.weird_limit() {
+            Ok(_) => info!("Weird limit set successfully"),
+            Err(e) => log::error!("Failed to set weird limit: {}", e),
+        }
         while total_prompt_tokens - prompt_processed_tokens > prefill_step_size {
-            let prompt_chunk = prompt_input.index(0..self.prefill_step_size).expand_dims(0)?;
+            let prompt_chunk = prompt_input
+                .index(0..self.prefill_step_size)
+                .expand_dims(0)?;
             let embed_slice = if let Some(emb) = input_embeddings {
                 Some(emb.index(0..prefill_step_size).expand_dims(0)?)
             } else {
@@ -148,17 +201,15 @@ impl TokenGenerator {
         }
 
         let (mut y, mut logprobs) = self.step(&prompt_input, input_embeddings)?;
-        y.eval()?;
-        logprobs.eval()?;
+        async_eval([&y, &logprobs])?;
 
         let mut n = 0;
         loop {
             if n != self.max_tokens {
-                let mut gti = GeneratedTokenInfo::default();
+                let mut gti = TokenGeneratedInfo::default();
                 gti.set_start_time(n, self.prompt_len);
                 let (next_y, next_logprobs) = self.step(&y, None)?;
-                next_y.eval()?;
-                next_logprobs.eval()?;
+                async_eval([&next_y, &next_logprobs])?;
 
                 if n == 0 {
                     y.eval()?;
@@ -170,7 +221,7 @@ impl TokenGenerator {
                     break;
                 }
 
-                let z= y.as_slice();
+                let z = y.as_slice();
                 gti.set_token(z);
                 if let Some(sender) = &self.token_sender {
                     if let Err(e) = sender.send(gti) {
@@ -194,14 +245,6 @@ impl TokenGenerator {
         }
 
         Ok(())
-    }
-}
-
-impl Iterator for TokenGenerator {
-    type Item = Vec<Arc<RwLock<GeneratedTokenInfo>>>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        Some(self.b_tokens.flush())
     }
 }
 

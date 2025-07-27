@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use serde::Serialize;
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Message {
@@ -8,11 +8,6 @@ pub struct Message {
 }
 
 impl Message {
-    pub fn to_json(&self) -> String {
-        //format!("[{}]", serde_json::to_string(&self).unwrap_or_default())
-        "[{\"content\":\"Hi my name is <Name>.\",\"user\":\"user\"}]".to_owned()
-    }
-
     pub fn to_map(&self) -> HashMap<String, String> {
         let mut map = HashMap::new();
         map.insert(String::from("messages"), self.content.clone());
@@ -24,8 +19,6 @@ pub enum Conversation {
     Single(Message),
     Batch(Vec<Message>),
 }
-
-
 
 impl Conversation {
     pub fn len(&self) -> usize {
@@ -47,4 +40,3 @@ impl Conversation {
         arr.get(arr.len()).cloned()
     }
 }
-

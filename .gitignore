@@ -22,3 +22,5 @@ target
 
 _MODEL
 /venv
+dhat-heap.json
+flamegraph.svg

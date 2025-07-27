@@ -17,11 +17,11 @@ pub enum Error {
     #[error("Failed to parse JSON")]
     JsonError(#[from] serde_json::Error),
 
-    #[error("Root model path could not be found")]
-    RootModelPathNotFound,
+    #[error("Root model could not be found in the path: {0}")]
+    RootModelPathNotFound(String),
 
-    #[error("Model path could not be found")]
-    ModelPathNotFound,
+    #[error("Model could not be found in the path: {0}")]
+    ModelPathNotFound(String),
 
     #[error("Model weight not found in path: {0}")]
     ModelWeightPathNotFound(String),
@@ -60,7 +60,9 @@ pub enum Error {
     TokenizerError(#[from] tokenizers::tokenizer::Error),
 
     #[error("Tokenizer template builder error")]
-    TokenizerTemplateError(#[from] tokenizers::processors::template::TemplateProcessingBuilderError),
+    TokenizerTemplateError(
+        #[from] tokenizers::processors::template::TemplateProcessingBuilderError,
+    ),
 
     #[error("MiniJinja template error")]
     MiniJinjaError(#[from] minijinja::Error),
@@ -91,4 +93,12 @@ pub enum Error {
 
     #[error("UTF-8 decoding error")]
     Utf8Error(#[from] std::str::Utf8Error),
+
+    #[error("Tensor '{tensor}' requested bytes {start}..{end}, but file size is {file_size}")]
+    SafetensorsOutOfBounds {
+        tensor: String,
+        start: usize,
+        end: usize,
+        file_size: usize,
+    },
 }

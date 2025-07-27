@@ -7,7 +7,6 @@ pub enum AttentionMask {
     MaskArray(Array),
 }
 
-
 impl AttentionMask {
     pub fn to_scaled_mask_opt(&self) -> Option<ScaledDotProductAttentionMask> {
         match self {

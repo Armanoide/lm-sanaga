@@ -1,5 +1,5 @@
-use crate::model::model::Model;
 use crate::error::Error;
+use crate::model::model::Model;
 use crate::model::weight::Weight;
 
 /*

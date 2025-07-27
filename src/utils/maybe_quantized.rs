@@ -1,13 +1,12 @@
 use mlx_rs::Array;
 use mlx_rs::error::Exception;
 use mlx_rs::nn::{Embedding, Linear};
-use mlx_rs::quantization::{MaybeQuantized};
+use mlx_rs::quantization::MaybeQuantized;
 
 pub trait MaybeQuantizedLinear {
     fn update_weight(&mut self, x: &Array);
     fn update_scales(&mut self, x: &Array);
     fn update_biases(&mut self, x: &Array);
-
 }
 
 pub trait MaybeQuantizedEmbedding {
@@ -18,7 +17,6 @@ pub trait MaybeQuantizedEmbedding {
 }
 
 impl MaybeQuantizedEmbedding for MaybeQuantized<Embedding> {
-
     fn as_linear(&mut self, x: &Array) -> Result<Array, Exception> {
         self.as_linear(x)
     }
@@ -31,7 +29,7 @@ impl MaybeQuantizedEmbedding for MaybeQuantized<Embedding> {
 
     fn update_scales(&mut self, x: &Array) {
         if let MaybeQuantized::Quantized(q) = self {
-         q.scales.value = x.to_owned();
+            q.scales.value = x.to_owned();
         }
     }
 

@@ -1,22 +1,26 @@
-mod config;
-mod error;
-mod utils;
-mod runner;
-mod factory;
-mod quantized;
-mod module;
-mod conversation;
-pub mod tokenizer;
-mod model;
-mod chat_template;
-mod generator;
+#[cfg(feature = "dhat-heap")]
+#[global_allocator]
+static ALLOC: dhat::Alloc = dhat::Alloc;
 mod cache;
+mod chat_template;
+mod config;
+mod conversation;
+mod error;
+mod factory;
 mod mask;
-use std::env;
-use env_logger::{Builder, Env};
-use log::{error, LevelFilter};
+mod model;
+mod module;
+mod quantized;
+mod runner;
+mod token;
+pub mod tokenizer;
+mod utils;
+
 use crate::conversation::{Conversation, Message};
-use crate::runner::{Runner};
+use crate::runner::Runner;
+use env_logger::{Builder, Env};
+use log::{LevelFilter, error};
+use std::env;
 
 fn init_logger() {
     let sanaga_debug = env::var("SANAGA_DEBUG").unwrap_or_else(|_| "false".to_string());
@@ -24,22 +28,24 @@ fn init_logger() {
     let mut builder = Builder::from_env(Env::default().default_filter_or("info"));
 
     //if sanaga_debug == "true" {
-        builder.filter_level(LevelFilter::Debug);
+    builder.filter_level(LevelFilter::Debug);
     //} else {
-        //builder.filter_level(LevelFilter::Info);
+    //builder.filter_level(LevelFilter::Info);
     //}
 
     builder.init();
 }
 
 fn main() {
-    let root_path = "/Volumes/EXT1_SSD/Users/user1/Projects/ML/sanaga-lm/_MODEL/models-llama-3.1-8B-Instruct-4bit".to_owned();
+    #[cfg(feature = "dhat-heap")]
+    let _profiler = dhat::Profiler::new_heap();
 
-    let conversation = Conversation::Single(
-        Message {
-            content: String::from("Hi !"),
-            role: String::from("user")
-        });
+    let root_path = "/Volumes/EXT1_SSD/Users/user1/Projects/ML/lm-sanaga/_MODEL/models-llama-3.1-8B-Instruct-4bit".to_owned();
+
+    let conversation = Conversation::Single(Message {
+        content: String::from("Hi, my name is <name>."),
+        role: String::from("user"),
+    });
 
     init_logger();
     let mut runner = Runner::new();

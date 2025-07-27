@@ -1,37 +1,38 @@
-use std::rc::Rc;
-use std::sync::{Arc, RwLock};
-use mlx_rs::Array;
-use mlx_rs::builder::Builder;
-use mlx_rs::module::{Module as MLXModule};
-use mlx_rs::nn::{RmsNorm};
-use crate::model::model::{Model};
-use crate::error::{Error, Result};
-use crate::model::models::llama::transformer_block::TransformerBlockLlama;
-use crate::model::weight::{Tensor, Weight};
-use crate::module::{Module};
-use mlx_rs::nn::{RmsNormBuilder, Linear, LinearBuilder, Embedding};
-use mlx_rs::quantization::{MaybeQuantized, Quantizable};
-use crate::cache::k_v_cache::{KVCache, SNCacheList, SNCacheItem};
+use crate::cache::k_v_cache::{ArcCacheItem, ArcCacheList, KVCache};
 use crate::config::config_models::llama::LLaMAConfig;
+use crate::error::{Error, Result};
 use crate::factory::mask::create_attention_mask;
 use crate::mask::mask::AttentionMask;
-use crate::quantized::{Quantize};
+use crate::model::model::Model;
+use crate::model::models::llama::transformer_block::TransformerBlockLlama;
+use crate::model::weight::{Tensor, Weight};
+use crate::module::Module;
+use crate::quantized::Quantize;
+use crate::token::token_generator::TokenGenerator;
 use crate::utils::maybe_quantized::{MaybeQuantizedEmbedding, MaybeQuantizedLinear};
 use crate::utils::rms_norm::NormExt;
 use crate::utils::rw_lock::RwLockExt;
+use mlx_rs::Array;
+use mlx_rs::builder::Builder;
+use mlx_rs::module::Module as MLXModule;
+use mlx_rs::nn::RmsNorm;
+use mlx_rs::nn::{Embedding, Linear, LinearBuilder, RmsNormBuilder};
+use mlx_rs::quantization::{MaybeQuantized, Quantizable};
+use rayon::prelude::*;
+use std::rc::Rc;
+use std::sync::{Arc, RwLock};
 
 pub struct ModelLLama {
     pub llama_config: Rc<LLaMAConfig>,
     pub layers: Vec<TransformerBlockLlama>,
     pub norm: RmsNorm,
-    pub lm_head: MaybeQuantized<Linear> ,
+    pub lm_head: MaybeQuantized<Linear>,
     pub embed_tokens: MaybeQuantized<Embedding>,
     pub bytes: u64,
 }
 
 impl Quantize for ModelLLama {
     fn quantize(&mut self, _: i32, _: i32) -> Result<()> {
-
         let mut bits = 4;
         let mut group_size = 64;
 
@@ -41,7 +42,10 @@ impl Quantize for ModelLLama {
         }
 
         self.lm_head = self.lm_head.clone().try_into_quantized(group_size, bits)?;
-        self.embed_tokens = self.embed_tokens.clone().try_into_quantized(group_size, bits)?;
+        self.embed_tokens = self
+            .embed_tokens
+            .clone()
+            .try_into_quantized(group_size, bits)?;
         for layer in &mut self.layers {
             layer.quantize(group_size, bits)?;
         }
@@ -50,7 +54,12 @@ impl Quantize for ModelLLama {
 }
 
 impl Module for ModelLLama {
-    fn forward(&mut self, _: &Array, _: Option<&AttentionMask>, _: Option<SNCacheItem>) -> Result<Array> {
+    fn forward(
+        &mut self,
+        _: &Array,
+        _: Option<&AttentionMask>,
+        _: Option<ArcCacheItem>,
+    ) -> Result<Array> {
         unimplemented!()
     }
 
@@ -72,7 +81,7 @@ impl Module for ModelLLama {
                         let idx = parts[2].parse::<usize>()?;
                         if idx < self.layers.len() {
                             self.layers[idx].set_weight(name, tensor)?;
-                            return Ok(())
+                            return Ok(());
                         }
                     }
                     return Err(Error::UnsupportedWeight(name.to_string()));
@@ -86,7 +95,9 @@ impl Module for ModelLLama {
 impl Model for ModelLLama {
     fn sanitize(&mut self, weight: &mut Weight) {
         // Remove rotary embeddings
-        weight.tensors.retain(|k, _| !k.contains("self_attn.rotary_emb.inv_freq"));
+        weight
+            .tensors
+            .retain(|k, _| !k.contains("self_attn.rotary_emb.inv_freq"));
 
         if self.llama_config.tie_word_embeddings {
             weight.tensors.remove("lm_head.weight");
@@ -108,7 +119,12 @@ impl Model for ModelLLama {
         self.layers.len()
     }
 
-    fn forward_model(&mut self, x: &Array, mask: Option<&AttentionMask>, caches: Option<SNCacheList>) -> Result<Array> {
+    fn forward_model(
+        &mut self,
+        x: &Array,
+        mask: Option<&AttentionMask>,
+        caches: Option<ArcCacheList>,
+    ) -> Result<Array> {
         let mut h = self.embed_tokens.forward(&x)?;
 
         // Create default cache vector outside
@@ -123,17 +139,38 @@ impl Model for ModelLLama {
         let default_mask = create_attention_mask(&h, None, false)?;
         let mask = match mask {
             Some(_) => mask,
-            _ => Some(&default_mask)
+            _ => Some(&default_mask),
         };
 
         // 4. Apply transformer layers
+        /*
+        let results = self.layers.par_iter_mut().enumerate()
+            .map(|(i, layer)| {
+                let context = format!("reading cache for layer {}", i);
+                if let Some(cache) = caches.read_lock(context.as_str())?.get(i) {
+                    layer.forward(&h, mask, Some(cache.clone()))
+                } else {
+                    layer.forward(&h, mask, None)
+                }
+            })
+            .collect();
+        let h = results?;  // Use `?` here, handle error once for all
+        */
+
+        /*self.layers.par_iter_mut().enumerate().for_each(|(i, layer)| {
+            let context = format!("reding cache for layer {}", i);
+            if let Some(cache) = caches.read_lock(context.as_str())?.get(i) {
+                h = layer.forward(&h, mask, Some(cache.clone()))?;
+            } else {
+                h = layer.forward(&h, mask, None)?;
+            }
+        });*/
         for (i, layer) in self.layers.iter_mut().enumerate() {
             let context = format!("reding cache for layer {}", i);
             if let Some(cache) = caches.read_lock(context.as_str())?.get(i) {
                 h = layer.forward(&h, mask, Some(cache.clone()))?;
             } else {
                 h = layer.forward(&h, mask, None)?;
-
             }
         }
 
@@ -160,16 +197,23 @@ impl ModelLLama {
 
         let norm = RmsNormBuilder {
             dimensions: llama_config.hidden_size,
-            eps: llama_config.rms_norm_eps
-        }.build()?;
+            eps: llama_config.rms_norm_eps,
+        }
+        .build()?;
 
-        let lm_head = MaybeQuantized::new(LinearBuilder {
-            input_dims: llama_config.hidden_size,
-            output_dims: llama_config.vocab_size,
-            bias: false
-        }.build()?);
+        let lm_head = MaybeQuantized::new(
+            LinearBuilder {
+                input_dims: llama_config.hidden_size,
+                output_dims: llama_config.vocab_size,
+                bias: false,
+            }
+            .build()?,
+        );
 
-        let embed_tokens = MaybeQuantized::new(Embedding::new(llama_config.vocab_size, llama_config.hidden_size)?);
+        let embed_tokens = MaybeQuantized::new(Embedding::new(
+            llama_config.vocab_size,
+            llama_config.hidden_size,
+        )?);
 
         Ok(ModelLLama {
             llama_config,
@@ -177,7 +221,7 @@ impl ModelLLama {
             norm,
             lm_head,
             embed_tokens,
-            bytes: 0
+            bytes: 0,
         })
     }
 }

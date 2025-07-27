@@ -1,8 +1,8 @@
-use minijinja::{Environment};
-use std::collections::HashMap;
-use serde_json::{Value};
 use crate::conversation::Conversation;
 use crate::error::Error;
+use minijinja::Environment;
+use serde_json::Value;
+use std::collections::HashMap;
 
 pub struct Document {
     pub title: String,
@@ -13,7 +13,6 @@ pub enum Tool {
     Schema(Value),
     Function(fn() -> Value), // Simplified placeholder
 }
-
 
 pub fn render_chat_template(
     conversations: &Conversation,
@@ -86,7 +85,7 @@ pub fn render_chat_template(
                 let clean = rendered.replace(start_tag, "").replace(end_tag, "");
                 // Optionally trim after final message
                 let final_output = if continue_final_message {
-                    if let Some(last_msg) = conversations.last_message()  {
+                    if let Some(last_msg) = conversations.last_message() {
                         if let final_message = last_msg.content {
                             if let Some(pos) = clean.rfind(final_message.trim()) {
                                 // Adjust length to preserve spacing if necessary

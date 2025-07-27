@@ -1,9 +1,9 @@
-use std::time::{SystemTime, UNIX_EPOCH};
-use crate::utils::mlx::get_peak_memory::get_peak_memory;
 use crate::error::Result;
+use crate::utils::mlx::get_peak_memory::get_peak_memory;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Default)]
-pub struct GeneratedTokenInfo {
+pub struct TokenGeneratedInfo {
     pub text: String,
     pub token: Vec<u32>,
     //pub logprobs: Array,
@@ -18,7 +18,7 @@ pub struct GeneratedTokenInfo {
     pub finish_reason: Option<String>,
 }
 
-impl GeneratedTokenInfo {
+impl TokenGeneratedInfo {
     pub fn set_token(&mut self, token: &[u32]) {
         self.token = Vec::from(token);
     }
@@ -62,43 +62,5 @@ impl GeneratedTokenInfo {
 
         self.peak_memory = get_peak_memory()?;
         Ok(())
-    }
-}
-
-
-pub trait TokenStatsExt {
-    fn tokens_stats(&self, skip_first: bool) -> Option<(f64, f64, f64)>;
-}
-
-impl TokenStatsExt for Vec<GeneratedTokenInfo> {
-    fn tokens_stats(&self, skip_first: bool) -> Option<(f64, f64, f64)> {
-        let data = if skip_first && self.len() > 1 {
-            &self[1..]
-        } else {
-            self.as_slice()
-        };
-
-        if data.is_empty() {
-            return None;
-        }
-
-        let len = data.len() as f64;
-
-        let (total_gen_tps, total_prompt_tps, total_peak_mem): (f64, f64, f64) = data.iter()
-            .map(|info| (
-                info.generation_tps,
-                info.prompt_tps,
-                info.peak_memory as f64))
-            .fold((0.0, 0.0, 0.0), |acc, x| (
-                acc.0 + x.0,
-                acc.1 + x.1,
-                acc.2 + x.2,
-            ));
-
-        Some((
-            /*avg_generation_tps:*/ total_gen_tps / len,
-            /*avg_prompt_tps:*/ total_prompt_tps / len,
-            /* avg_peak_memory:*/ total_peak_mem / len,
-        ))
     }
 }
