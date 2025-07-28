@@ -1,0 +1,14 @@
+[package]
+name = "lm-sanaga"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+#dhat-heap = []
+
+[dependencies]
+inference = { path = "../sn_inference" }
+sn_api = { path = "../sn_api" }
+sn_core = { path = "../sn_core" }
+log = { workspace = true }
+env_logger = { workspace = true }

@@ -1,30 +1,23 @@
-[package]
-name = "lm-sanaga"
-version = "0.1.0"
-edition = "2024"
+[workspace]
+members = [
+    "sn_backend",
+    "sn_api",
+    "sn_core",
+    "sn_inference"
+]
 
-[dependencies]
-mlx-rs = "0.25.1"
-mlx-sys = "0.2.0"
-serde_json="1.0.140"
-serde = { version = "1.0.219", features = ["derive", "rc"] }
-walkdir ="2.5.0"
+[workspace.dependencies]
 log="0.4.27"
 env_logger = "0.11.8"
-glob="0.3.2"
-minijinja="2.11.0"
-tokenizers = "0.21.4-dev.0"
-hex = "0.4.3"
 thiserror="2.0.12"
-itertools = "0.14.0"
-rayon = "1.10.0"
-#tokio = { version = "1.46.1", features = ["full"]  }
-crossbeam = "0.8.4"
-dhat = "0.3.3"
-memmap2 = "0.9.7"
+serde_json="1.0.140"
+mlx-rs = "0.25.1"
+tokenizers = "0.21.4-dev.0"
+serde = { version = "1.0.219", features = ["derive", "rc"] }
+minijinja="2.11.0"
+glob="0.3.2"
+[workspace.dev-dependencies]
 
-[profile.release]
-debug = 1
 
-[features]
-dhat-heap = []
+#[profile.release]
+#debug = 0

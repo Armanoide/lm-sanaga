@@ -1,0 +1,15 @@
+[package]
+name = "sn_core"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+log = { workspace = true }
+env_logger = { workspace = true }
+thiserror= { workspace = true }
+serde_json={ workspace = true }
+mlx-rs = { workspace = true }
+tokenizers = { workspace = true }
+serde = { workspace = true }
+minijinja= { workspace = true }
+glob= { workspace = true }

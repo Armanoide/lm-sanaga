@@ -1,0 +1,8 @@
+[package]
+name = "sn_api"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+sn_core = { path = "../sn_core" }
+axum = { version = "0.8.4" }

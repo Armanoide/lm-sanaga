@@ -1,0 +1,24 @@
+[package]
+name = "inference"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+sn_core = { path = "../sn_core" }
+mlx-rs = { workspace = true }
+mlx-sys = "0.2.0"
+serde_json={workspace = true}
+serde = { workspace = true }
+walkdir ="2.5.0"
+glob={ workspace = true }
+minijinja="2.11.0"
+tokenizers = { workspace = true }
+hex = "0.4.3"
+thiserror={workspace = true}
+itertools = "0.14.0"
+rayon = "1.10.0"
+#tokio = { version = "1.46.1", features = ["full"]  }
+crossbeam = "0.8.4"
+dhat = "0.3.3"
+memmap2 = "0.9.7"
+log = { workspace = true }
