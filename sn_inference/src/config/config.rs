@@ -1,6 +1,6 @@
 use crate::config::config_model::ConfigModel;
 use crate::config::config_tokenizer_custom::ConfigTokenizerCustom;
-use sn_core::error::Result;
+use crate::error::Result;
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
 use std::fs;

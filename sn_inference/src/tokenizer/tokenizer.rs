@@ -1,14 +1,15 @@
 use crate::chat_template::chat_template::render_chat_template;
 use crate::config::config::Config;
-use sn_core::error::{Error, Result};
+use crate::error::{Error, Result};
 use crate::token::token_generated_info::TokenGeneratedInfo;
 use log::debug;
 use minijinja::Environment;
 use rayon::prelude::*;
+use sn_core::conversation::conversation::Conversation;
 use std::rc::Rc;
 use tokenizers::tokenizer::Tokenizer as HugTokenizer;
-use sn_core::conversation::conversation::Conversation;
 
+#[derive(Debug)]
 pub struct Tokenizer {
     tool: HugTokenizer,
     config: Rc<Config>,

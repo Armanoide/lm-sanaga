@@ -1,4 +1,4 @@
-use sn_core::error::{Error, Result};
+use crate::error::{Error, Result};
 use mlx_sys::mlx_set_wired_limit;
 
 pub fn set_wired_limit(limit: usize) -> Result<(usize)> {

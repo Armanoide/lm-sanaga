@@ -1,8 +1,8 @@
+use crate::error::Error;
 use minijinja::Environment;
 use serde_json::Value;
-use std::collections::HashMap;
 use sn_core::conversation::conversation::Conversation;
-use sn_core::error::Error;
+use std::collections::HashMap;
 
 pub struct Document {
     pub title: String,

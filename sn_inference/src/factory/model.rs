@@ -1,6 +1,6 @@
 use crate::config::config::Config;
 use crate::config::config_model::ConfigModel;
-use sn_core::error::Result;
+use crate::error::Result;
 use crate::model::model_kind::ModelKind;
 use crate::model::models::llama::llama::ModelLLama;
 use std::rc::Rc;

@@ -1,6 +1,6 @@
 use crate::cache::k_v_cache::{ArcCacheItem, ArcCacheList, KVCache};
 use crate::config::config_models::llama::LLaMAConfig;
-use sn_core::error::{Error, Result};
+use crate::error::{Error, Result};
 use crate::factory::mask::create_attention_mask;
 use crate::mask::mask::AttentionMask;
 use crate::model::model::Model;
@@ -11,7 +11,6 @@ use crate::quantized::Quantize;
 use crate::token::token_generator::TokenGenerator;
 use crate::utils::maybe_quantized::{MaybeQuantizedEmbedding, MaybeQuantizedLinear};
 use crate::utils::rms_norm::NormExt;
-use crate::utils::rw_lock::RwLockExt;
 use mlx_rs::Array;
 use mlx_rs::builder::Builder;
 use mlx_rs::module::Module as MLXModule;
@@ -19,9 +18,11 @@ use mlx_rs::nn::RmsNorm;
 use mlx_rs::nn::{Embedding, Linear, LinearBuilder, RmsNormBuilder};
 use mlx_rs::quantization::{MaybeQuantized, Quantizable};
 use rayon::prelude::*;
+use sn_core::utils::rw_lock::RwLockExt;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 
+#[derive(Debug)]
 pub struct ModelLLama {
     pub llama_config: Rc<LLaMAConfig>,
     pub layers: Vec<TransformerBlockLlama>,

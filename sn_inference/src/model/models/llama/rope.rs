@@ -1,5 +1,5 @@
 use crate::config::config_models::llama::LLaMARopeScalingConfig;
-use sn_core::error::{Error, Result};
+use crate::error::{Error, Result};
 use mlx_rs::ops::{arange, gt, logical_and, lt, power, r#where};
 use mlx_rs::{Array, rope};
 

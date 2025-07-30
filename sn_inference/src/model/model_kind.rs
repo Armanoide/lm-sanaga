@@ -1,5 +1,5 @@
 use crate::cache::k_v_cache::{ArcCacheItem, ArcCacheList};
-use sn_core::error::{Error, Result};
+use crate::error::{Error, Result};
 use crate::mask::mask::AttentionMask;
 use crate::model::model::Model;
 use crate::model::models::llama::llama::ModelLLama;
@@ -7,7 +7,7 @@ use crate::model::weight::{Tensor, Weight};
 use crate::module::Module;
 use crate::quantized::Quantize;
 use mlx_rs::Array;
-
+#[derive(Debug)]
 pub enum ModelKind {
     LLaMA(ModelLLama),
 }

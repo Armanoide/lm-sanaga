@@ -1,6 +1,6 @@
 use crate::cache::k_v_cache::ArcCacheItem;
 use crate::config::config_models::llama::LLaMAConfig;
-use sn_core::error::{Error, Result};
+use crate::error::{Error, Result};
 use crate::mask::mask::AttentionMask;
 use crate::model::weight::Tensor;
 use crate::module::Module;

@@ -1,5 +1,5 @@
 use crate::cache::k_v_cache::ArcCacheList;
-use sn_core::error::Result;
+use crate::error::Result;
 use crate::factory::k_v_cache::create_prompt_cache;
 use crate::model::model::Model;
 use crate::model::model_kind::ModelKind;
@@ -21,7 +21,7 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 pub type SamplerFn = Arc<dyn Fn(&Array) -> Result<Array> + Send + Sync>;
 
 type LogitsProcessor = Arc<dyn Fn(&Array, &Array) -> Result<Array> + Send + Sync>;
-use crate::utils::rw_lock::RwLockExt;
+use sn_core::utils::rw_lock::RwLockExt;
 
 pub struct TokenGeneratorOpts {
     temperature: Option<f32>,
@@ -48,7 +48,7 @@ pub struct TokenGenerator {
     prompt_len: usize,
     options: Option<TokenGeneratorOpts>,
     token_sender: Option<Sender<TokenGeneratedInfo>>, //pub quantize_cache_fn: Box<dyn Fn(&mut Cache) + 'a>,
-                                                      //pub prompt_progress_callback: Box<dyn Fn(usize, usize) + 'a>,
+    //pub prompt_progress_callback: Box<dyn Fn(usize, usize) + 'a>,
     pub total_generated_tokens: usize,
     pub total_prompt_duration: f64,
     pub prefill_duration: f64,

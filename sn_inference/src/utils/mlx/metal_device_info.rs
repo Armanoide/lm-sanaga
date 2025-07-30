@@ -1,4 +1,4 @@
-use sn_core::error::{Error, Result};
+use crate::error::{Error, Result};
 use mlx_sys::mlx_metal_device_info;
 use std::{ffi::CStr, os::raw::c_char};
 #[repr(C)]

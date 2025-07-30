@@ -1,4 +1,4 @@
-use sn_core::error::Result;
+use crate::error::Result;
 use crate::utils::mlx::get_peak_memory::get_peak_memory;
 
 #[derive(Debug, Default)]

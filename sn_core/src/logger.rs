@@ -1,6 +1,6 @@
-use std::env;
 use env_logger::{Builder, Env};
 use log::LevelFilter;
+use std::env;
 
 pub fn init_logger() {
     let sanaga_debug = env::var("SANAGA_DEBUG").unwrap_or_else(|_| "false".to_string());

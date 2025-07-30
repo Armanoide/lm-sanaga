@@ -1,5 +1,5 @@
 use crate::cache::k_v_cache::ArcCacheItem;
-use sn_core::error::Result;
+use crate::error::Result;
 use crate::mask::mask::AttentionMask;
 use crate::model::weight::Tensor;
 use crate::quantized::Quantize;

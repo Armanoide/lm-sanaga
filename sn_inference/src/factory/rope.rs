@@ -1,5 +1,5 @@
 use crate::config::config_model::ConfigModel;
-use sn_core::error::{Error, Result};
+use crate::error::{Error, Result};
 use crate::model::models::llama::rope::RopeLlama;
 
 pub enum RopeModelType {

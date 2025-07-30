@@ -1,4 +1,4 @@
-use sn_core::error::{Error, Result};
+use crate::error::{Error, Result};
 use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 pub trait RwLockExt<T> {

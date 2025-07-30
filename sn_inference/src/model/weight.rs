@@ -1,5 +1,5 @@
 use crate::config::config::Config;
-use sn_core::error::{Error, Result};
+use crate::error::{Error, Result};
 use crate::utils::d_type::DTypeExt;
 use crate::utils::string::find_json_object_end;
 use glob::glob;
@@ -43,9 +43,11 @@ pub struct Tensor {
     pub shape: Vec<i32>,
     pub data: Array,
 }
+#[derive(Debug)]
 pub struct Metadata {
     pub format: Option<String>,
 }
+#[derive(Debug)]
 pub struct Weight {
     pub metadata: Metadata,
     pub tensors: HashMap<String, Tensor>,

@@ -1,12 +1,12 @@
-use sn_core::error::{Error, Result};
+use crate::error::{Error, Result};
 use crate::model::model_kind::ModelKind;
 use crate::token::token_generated_info::TokenGeneratedInfo;
 use crate::token::token_generator::TokenGenerator;
 use crate::tokenizer::tokenizer::Tokenizer;
-use crate::utils::rw_lock::RwLockExt;
 use crossbeam::channel::{Receiver, Sender, bounded};
 use log::{debug, error};
 use rayon::prelude::*;
+use sn_core::utils::rw_lock::RwLockExt;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex, RwLock};
@@ -100,7 +100,6 @@ impl TokenStreamManager {
             return Err(Error::TokenGenerationStartFailure);
         }
 
-
         if let Some(token_generator) = &self.token_generator {
             let total_generated_tokens = {
                 let context = "reading total_generated_tokens from token_generator";
@@ -120,7 +119,7 @@ impl TokenStreamManager {
 
             let prompt_tps = match prefill_duration {
                 0.0 => 0.0,
-                duration => total_generated_tokens as f64 / duration
+                duration => total_generated_tokens as f64 / duration,
             };
             println!("Prompt TPS: {:.2} tokens/sec", prompt_tps);
 
