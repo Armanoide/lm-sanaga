@@ -12,14 +12,15 @@ pub async fn handle(cli_client: &CliClient) -> Result<()> {
             println!("No models running.");
         }
         _ => {
-            println!("id name\n======");
+            println!("{:<10} {:<40}", "id", "name");
+            println!("{:-<10} {:-<40}", "", "");
             for model in models {
                 let id = model.get("id").and_then(Value::as_str).unwrap_or("unknown");
                 let name = model
                     .get("name")
                     .and_then(Value::as_str)
                     .unwrap_or("unknown");
-                println!("{} {}", id, name);
+                println!("{:<10} {:<40}", id, name);
             }
         }
     };

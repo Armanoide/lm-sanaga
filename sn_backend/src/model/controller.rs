@@ -7,9 +7,7 @@ use serde_json::json;
 use sn_core::utils::rw_lock::RwLockExt;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tracing::log::debug;
 
-#[axum::debug_handler]
 pub async fn get_model_list(State(state): State<Arc<AppState>>) -> ResultAPI {
     let models_installed: Vec<String> = {
         let context = "reading models installed of the runner";
@@ -25,7 +23,12 @@ pub async fn get_models_running(State(state): State<Arc<AppState>>) -> ResultAPI
         let guard = &state.runner;
         &guard.read_lock(context)?.models
     };
-    let models = models.iter().map(|model| json!(model)).collect::<Vec<_>>();
+    let models = models.iter()
+        .map(|model| json!({
+            "name": model.name,
+            "id": model.id,
+        }))
+        .collect::<Vec<_>>();
     Ok(Json(json!(models)))
 }
 

@@ -1,4 +1,3 @@
-pub(crate) use crate::app_state::AppState;
 use crate::model;
 use axum::ServiceExt;
 use axum::http::StatusCode;
@@ -9,6 +8,7 @@ use tower_http::trace::{
     DefaultMakeSpan, DefaultOnFailure, DefaultOnRequest, DefaultOnResponse, TraceLayer,
 };
 use tracing::Level;
+pub(crate) use crate::app_state::AppState;
 
 async fn fallback() -> (StatusCode, &'static str) {
     (StatusCode::NOT_FOUND, "Not Found")

@@ -14,29 +14,28 @@ impl Runner {
         Runner { models: Vec::new() }
     }
 
-    fn generate_unique_id(salt: &String) -> String {
+    fn generate_path_id(salt: &String) -> String {
         let id = hex::encode(salt.as_bytes());
         String::from(&id[..8])
     }
     pub fn load_model_name(&mut self, name: &str) -> Result<(String)> {
         let path = format!("{BASE_PATH}/{name}");
-        let id = Self::generate_unique_id(&path);
+        let id = Self::generate_path_id(&path);
+
+        if let Some(model_runtime) = self.get_model_by_id(&id) {
+            info!("Model {} already loaded in container {}", model_runtime.name, model_runtime.id);
+            return Ok(id);
+        }
+
         let mut model_runtime = ModelRuntime::load_with_path(path.as_str(), &id)?;
         let _ = &model_runtime.routine_model()?;
-        info!(
-            "Model {} loaded in container {}",
-            model_runtime.name, model_runtime.id
-        );
+        info!("Model {} loaded in container {}", model_runtime.name, model_runtime.id);
         self.models.push(model_runtime);
         Ok(id)
     }
 
-    fn get_model_by_id(&self, model_id: &str) -> Result<&ModelRuntime> {
-        if let Some(model) = self.models.iter().find(|m| m.id == model_id) {
-            Ok(model)
-        } else {
-            Err(Error::ModelRuntimeNotFoundWithId(model_id.to_string()))
-        }
+    fn get_model_by_id(&self, model_id: &str) -> Option<&ModelRuntime> {
+        self.models.iter().find(|m| m.id == model_id)
     }
     pub fn unload_model(&self, model_id: &str) {}
 
