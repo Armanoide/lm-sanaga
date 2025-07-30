@@ -3,9 +3,8 @@
 static ALLOC: dhat::Alloc = dhat::Alloc;
 
 use env_logger::{Builder, Env};
-use log::{LevelFilter, error};
 use sn_core::conversation::conversation::{Conversation, Message};
-use sn_core::logger::init_logger;
+use sn_core::logger::init_tracing;
 use sn_inference::runner::Runner;
 use std::env;
 use std::sync::Arc;
@@ -16,11 +15,12 @@ mod handlers;
 mod middleware;
 mod routes;
 pub mod server;
+
 use std::sync::RwLock;
 fn main() {
     #[cfg(feature = "dhat-heap")]
     let _profiler = dhat::Profiler::new_heap();
-    init_logger();
+    init_tracing();
     let mut runner = Arc::new(RwLock::new(Runner::new()));
 
     let root_path = "/Volumes/EXT1_SSD/Users/user1/Projects/ML/lm-sanaga/_MODEL/models-llama-3.1-8B-Instruct-4bit".to_owned();

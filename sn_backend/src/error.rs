@@ -1,7 +1,7 @@
 use axum::Json;
-use axum::response::IntoResponse;
+use axum::response::{IntoResponse, Response};
 use serde_json;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use thiserror::Error;
 
 pub type ResultAPI = std::result::Result<Json<Value>, crate::error::Error>;
@@ -23,6 +23,7 @@ impl IntoResponse for Error {
             Error::Inference(_) => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
         };
 
+        println!("Error occurred: {:?}", self);
         let body = Json(json!({
             "error": self.to_string(),
         }));

@@ -2,7 +2,7 @@ use crate::chat_template::chat_template::render_chat_template;
 use crate::config::config::Config;
 use crate::error::{Error, Result};
 use crate::token::token_generated_info::TokenGeneratedInfo;
-use log::debug;
+use tracing::debug;
 use minijinja::Environment;
 use rayon::prelude::*;
 use sn_core::conversation::conversation::Conversation;

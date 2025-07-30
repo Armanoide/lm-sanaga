@@ -1,17 +1,23 @@
-use env_logger::{Builder, Env};
-use log::LevelFilter;
+use tracing_subscriber::{EnvFilter};
 use std::env;
 
-pub fn init_logger() {
+pub fn init_tracing() {
+    // Check for SANAGA_DEBUG environment variable
     let sanaga_debug = env::var("SANAGA_DEBUG").unwrap_or_else(|_| "false".to_string());
 
-    let mut builder = Builder::from_env(Env::default().default_filter_or("info"));
+    // Set base filter depending on debug flag
+    let default_level = if sanaga_debug == "true" {
+        "debug"
+    } else {
+        "info"
+    };
 
-    //if sanaga_debug == "true" {
-    builder.filter_level(LevelFilter::Debug);
-    //} else {
-    //builder.filter_level(LevelFilter::Info);
-    //}
+    // Allow override via RUST_LOG
+    let env_filter = EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| EnvFilter::new(default_level));
 
-    builder.init();
+    // Initialize subscriber with pretty formatter (or .json() for structured logs)
+    tracing_subscriber::fmt()
+        .with_env_filter(env_filter)
+        .init();
 }

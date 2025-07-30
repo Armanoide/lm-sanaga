@@ -8,7 +8,7 @@ use crate::utils::mlx::metal_device_info::metal_device_info;
 use crate::utils::mlx::metal_is_available::metal_is_available;
 use crate::utils::mlx::set_wired_limit::set_wired_limit;
 use crossbeam::channel::Sender;
-use log::info;
+use tracing::{info, error};
 use mlx_rs::Array;
 use mlx_rs::ops::concatenate;
 use mlx_rs::ops::indexing::{IndexOp, argmax_axis};
@@ -183,7 +183,7 @@ impl TokenGenerator {
 
         match self.weird_limit() {
             Ok(_) => info!("Weird limit set successfully"),
-            Err(e) => log::error!("Failed to set weird limit: {}", e),
+            Err(e) => error!("Failed to set weird limit: {}", e),
         }
         while total_prompt_tokens - prompt_processed_tokens > prefill_step_size {
             println!(
@@ -245,7 +245,7 @@ impl TokenGenerator {
                 gti.set_token(z, n);
                 if let Some(sender) = &self.token_sender {
                     if let Err(e) = sender.send(gti) {
-                        log::error!("Failed to send token through crossbeam: {}", e);
+                        error!("Failed to send token through crossbeam: {}", e);
                     }
                 }
                 if z.par_iter().any(|tok| self.eot_ids.contains(tok)) {

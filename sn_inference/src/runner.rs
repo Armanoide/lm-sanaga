@@ -1,6 +1,6 @@
 use crate::error::Result;
 use crate::model::model_runtime::ModelRuntime;
-use log::info;
+use tracing::info;
 use sn_core::conversation::conversation::Conversation;
 #[derive(Debug)]
 pub struct Runner {

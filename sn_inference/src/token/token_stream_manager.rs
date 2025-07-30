@@ -4,7 +4,7 @@ use crate::token::token_generated_info::TokenGeneratedInfo;
 use crate::token::token_generator::TokenGenerator;
 use crate::tokenizer::tokenizer::Tokenizer;
 use crossbeam::channel::{Receiver, Sender, bounded};
-use log::{debug, error};
+use tracing::{debug, error};
 use rayon::prelude::*;
 use sn_core::utils::rw_lock::RwLockExt;
 use std::cell::RefCell;
