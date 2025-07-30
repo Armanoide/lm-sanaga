@@ -1,7 +1,7 @@
 use axum::Json;
 use axum::response::{IntoResponse, Response};
 use serde_json;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use thiserror::Error;
 
 pub type ResultAPI = std::result::Result<Json<Value>, crate::error::Error>;
@@ -14,13 +14,17 @@ pub enum Error {
 
     #[error(transparent)]
     Inference(#[from] sn_inference::error::Error),
+
+    #[error("Model name is required")]
+    ModelNameRequired,
 }
 
 impl IntoResponse for Error {
     fn into_response(self) -> axum::response::Response {
-        let status = match self {
+        let status = match &self {
             Error::Core(_) => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
             Error::Inference(_) => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            Error::ModelNameRequired => axum::http::StatusCode::BAD_REQUEST,
         };
 
         println!("Error occurred: {:?}", self);

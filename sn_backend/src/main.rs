@@ -9,11 +9,9 @@ use sn_inference::runner::Runner;
 use std::env;
 use std::sync::Arc;
 mod app_state;
-mod dto;
 mod error;
-mod handlers;
 mod middleware;
-mod routes;
+mod model;
 pub mod server;
 
 use std::sync::RwLock;
