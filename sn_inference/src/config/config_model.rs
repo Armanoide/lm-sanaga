@@ -1,6 +1,6 @@
 use crate::config::config_models::llama::LLaMAConfig;
 use serde::de;
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use std::rc::Rc;
 
@@ -33,6 +33,17 @@ impl<'de> Deserialize<'de> for ConfigModel {
                 Ok(ConfigModel::LLaMA(Rc::new(llama_config)))
             }
             other => Err(de::Error::unknown_variant(other, &["llama"])),
+        }
+    }
+}
+
+impl Serialize for ConfigModel {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            ConfigModel::LLaMA(config) => config.serialize(serializer),
         }
     }
 }

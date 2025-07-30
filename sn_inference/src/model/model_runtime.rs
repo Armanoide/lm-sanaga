@@ -8,27 +8,30 @@ use crate::model::weight::Weight;
 use crate::quantized::Quantize;
 use crate::token::token_stream_manager::TokenStreamManager;
 use crate::tokenizer::tokenizer::Tokenizer;
+use serde::{Deserialize, Serialize};
 use sn_core::conversation::conversation::Conversation;
-use sn_core::dto::model_runtime::ModelRuntimeDTO;
 use sn_core::utils::rw_lock::RwLockExt;
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 use walkdir::WalkDir;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ModelRuntime {
     pub id: String,
     pub name: String,
     pub model_path: String,
     pub config: Rc<Config>,
+    #[serde(skip_serializing, skip_deserializing)]
     pub model: Option<Arc<RwLock<ModelKind>>>,
+    #[serde(skip_serializing, skip_deserializing)]
     pub tokenizer: Option<Rc<Tokenizer>>,
+    #[serde(skip_serializing, skip_deserializing)]
     pub weight: Option<Weight>,
 }
 
 impl ModelRuntime {
-    pub fn load_with_path(root_path: &str, id: String) -> Result<ModelRuntime> {
+    pub fn load_with_path(root_path: &str, id: &String) -> Result<ModelRuntime> {
         let path = Path::new(&root_path);
         if !path.exists() {
             return Err(Error::ModelPathNotFound(path.display().to_string()));
@@ -42,7 +45,7 @@ impl ModelRuntime {
         let tokenizer = Rc::new(Tokenizer::new(config.clone())?);
 
         Ok(ModelRuntime {
-            id,
+            id: id.clone(),
             name,
             model_path,
             config,
@@ -107,14 +110,5 @@ impl ModelRuntime {
             let _ = sr.generate_text(prompt);
         }
         Ok(())
-    }
-}
-
-impl From<&ModelRuntime> for ModelRuntimeDTO {
-    fn from(model_runtime: &ModelRuntime) -> Self {
-        ModelRuntimeDTO {
-            name: model_runtime.name.clone(),
-            id: model_runtime.id.clone(),
-        }
     }
 }

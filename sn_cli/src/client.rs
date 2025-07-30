@@ -54,7 +54,7 @@ impl CliClient {
         let url = format!("{}/api/v1/models/run", self.base_url);
         let result = self
             .client
-            .get(&url)
+            .post(&url)
             .json(&serde_json::json!({ "name": name }))
             .send()
             .await;

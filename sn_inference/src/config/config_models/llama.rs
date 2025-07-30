@@ -1,8 +1,8 @@
 use crate::config::config_model::ConfigModelCommon;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[allow(unused_variables)]
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, Serialize)]
 pub struct LLaMAConfig {
     pub architectures: Vec<String>,
     pub attention_bias: bool,
@@ -32,13 +32,13 @@ pub struct LLaMAConfig {
     pub vocab_size: i32,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, Serialize)]
 pub struct LLaMAQuantizationConfig {
     pub group_size: i32,
     pub bits: i32,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, Serialize)]
 pub struct LLaMARopeScalingConfig {
     pub factor: f32,
     pub low_freq_factor: f32,

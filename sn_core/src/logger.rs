@@ -1,5 +1,5 @@
-use tracing_subscriber::{EnvFilter};
 use std::env;
+use tracing_subscriber::EnvFilter;
 
 pub fn init_tracing() {
     // Check for SANAGA_DEBUG environment variable
@@ -12,12 +12,12 @@ pub fn init_tracing() {
         "info"
     };
 
+    let default_level = "debug";
+
     // Allow override via RUST_LOG
-    let env_filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new(default_level));
+    let env_filter =
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(default_level));
 
     // Initialize subscriber with pretty formatter (or .json() for structured logs)
-    tracing_subscriber::fmt()
-        .with_env_filter(env_filter)
-        .init();
+    tracing_subscriber::fmt().with_env_filter(env_filter).init();
 }

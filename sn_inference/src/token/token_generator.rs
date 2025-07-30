@@ -8,7 +8,6 @@ use crate::utils::mlx::metal_device_info::metal_device_info;
 use crate::utils::mlx::metal_is_available::metal_is_available;
 use crate::utils::mlx::set_wired_limit::set_wired_limit;
 use crossbeam::channel::Sender;
-use tracing::{info, error};
 use mlx_rs::Array;
 use mlx_rs::ops::concatenate;
 use mlx_rs::ops::indexing::{IndexOp, argmax_axis};
@@ -17,6 +16,7 @@ use mlx_rs::transforms::compile::clear_cache;
 use rayon::prelude::*;
 use std::sync::{Arc, RwLock};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use tracing::{error, info};
 
 pub type SamplerFn = Arc<dyn Fn(&Array) -> Result<Array> + Send + Sync>;
 

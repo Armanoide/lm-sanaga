@@ -104,4 +104,7 @@ pub enum Error {
 
     #[error(" system time error :{0}")]
     SystemTimeError(#[from] std::time::SystemTimeError),
+
+    #[error("Model runtime not found with id: {0}")]
+    ModelRuntimeNotFoundWithId(String),
 }

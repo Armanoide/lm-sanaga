@@ -1,6 +1,5 @@
 use crate::client::CliClient;
 use crate::error::Result;
-use sn_core::dto::model_runtime::ModelRuntimeDTO;
 
 pub async fn handle(cli_client: &CliClient) -> Result<()> {
     let response = cli_client.list_model().await?;

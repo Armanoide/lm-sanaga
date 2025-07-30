@@ -1,8 +1,9 @@
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::model::model_runtime::ModelRuntime;
-use tracing::info;
+use serde::{Deserialize, Serialize};
 use sn_core::conversation::conversation::Conversation;
-#[derive(Debug)]
+use tracing::info;
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Runner {
     pub models: Vec<ModelRuntime>,
 }
@@ -17,19 +18,26 @@ impl Runner {
         let id = hex::encode(salt.as_bytes());
         String::from(&id[..8])
     }
-    pub fn load_model_name(&mut self, name: &String) -> Result<()> {
-        let path = BASE_PATH.to_string() + name;
+    pub fn load_model_name(&mut self, name: &str) -> Result<(String)> {
+        let path = format!("{BASE_PATH}/{name}");
         let id = Self::generate_unique_id(&path);
-        let mut model_runtime = ModelRuntime::load_with_path(path.as_str(), id)?;
+        let mut model_runtime = ModelRuntime::load_with_path(path.as_str(), &id)?;
         let _ = &model_runtime.routine_model()?;
         info!(
             "Model {} loaded in container {}",
             model_runtime.name, model_runtime.id
         );
         self.models.push(model_runtime);
-        Ok(())
+        Ok(id)
     }
 
+    fn get_model_by_id(&self, model_id: &str) -> Result<&ModelRuntime> {
+        if let Some(model) = self.models.iter().find(|m| m.id == model_id) {
+            Ok(model)
+        } else {
+            Err(Error::ModelRuntimeNotFoundWithId(model_id.to_string()))
+        }
+    }
     pub fn unload_model(&self, model_id: &str) {}
 
     pub fn generate_text(&self, model_id: &str, conversation: &Conversation) -> Result<()> {

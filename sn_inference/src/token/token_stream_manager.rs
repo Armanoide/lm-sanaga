@@ -4,7 +4,6 @@ use crate::token::token_generated_info::TokenGeneratedInfo;
 use crate::token::token_generator::TokenGenerator;
 use crate::tokenizer::tokenizer::Tokenizer;
 use crossbeam::channel::{Receiver, Sender, bounded};
-use tracing::{debug, error};
 use rayon::prelude::*;
 use sn_core::utils::rw_lock::RwLockExt;
 use std::cell::RefCell;
@@ -12,6 +11,7 @@ use std::rc::Rc;
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use tracing::{debug, error};
 
 pub struct TokenStreamManager {
     tokenizer: Rc<Tokenizer>,

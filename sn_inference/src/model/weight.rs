@@ -3,7 +3,6 @@ use crate::error::{Error, Result};
 use crate::utils::d_type::DTypeExt;
 use crate::utils::string::find_json_object_end;
 use glob::glob;
-use tracing::{debug, error};
 use memmap2::MmapOptions;
 use mlx_rs::{Array, Dtype};
 use serde::Deserialize;
@@ -13,6 +12,7 @@ use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 use std::vec::Vec;
+use tracing::{debug, error};
 
 static HEADER_MAX_SAFETENSORS: usize = 100_000_000;
 static HEADER_OFFSET_SAFETENSORS: usize = 8;

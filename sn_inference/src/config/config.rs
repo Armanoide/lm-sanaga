@@ -1,12 +1,12 @@
 use crate::config::config_model::ConfigModel;
 use crate::config::config_tokenizer_custom::ConfigTokenizerCustom;
 use crate::error::Result;
-use serde::Deserialize;
 use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
 use std::rc::Rc;
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Config {
     pub model: Rc<ConfigModel>,
     pub tokenizer_custom: ConfigTokenizerCustom,
