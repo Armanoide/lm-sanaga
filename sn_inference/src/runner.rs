@@ -45,7 +45,13 @@ impl Runner {
     fn get_model_by_id(&self, model_id: &str) -> Option<&ModelRuntime> {
         self.models.iter().find(|m| m.id == model_id)
     }
-    pub fn unload_model(&self, model_id: &str) {}
+    pub fn unload_model(&mut self, model_id: &str) {
+        self.models.iter().position(|model| model.id == model_id)
+            .map(|index| {
+            info!("Unloading model: {}", self.models[index].name);
+            self.models.remove(index);
+        });
+    }
 
     pub fn generate_text(
         &self,

@@ -31,7 +31,12 @@ pub enum ModelCommands {
     Run {
         #[arg(short, long)]
         name: Option<String>,
-        /// Model name passed as a positional argument
+        #[arg()]
+        model: Option<String>,
+    },
+    Stop {
+        #[arg(short, long)]
+        name: Option<String>,
         #[arg()]
         model: Option<String>,
     },

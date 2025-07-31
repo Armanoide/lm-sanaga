@@ -18,6 +18,9 @@ pub enum Error {
     #[error("Model {0} is not available: {1}")]
     FailedToRunModel(String, String),
 
+    #[error("Failed to stop model {0}: {1}")]
+    FailedToStopModel(String, String),
+
     #[error("Model {0} is not compatible with the current version of sn")]
     UnExpectedRunResponse(String),
 

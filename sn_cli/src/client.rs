@@ -23,7 +23,7 @@ impl CliClient {
         &self,
         res: std::result::Result<Response, reqwest::Error>,
     ) -> Result<String> {
-        match res {
+        match res?.error_for_status() {
             Ok(res) => {
                 let text = res.text().await?;
                 Ok(text)
@@ -66,7 +66,7 @@ impl CliClient {
             .client
             .post(&url)
             .json(&serde_json::json!({
-                "model_id": model_id,
+                "id": model_id,
                 "prompt": prompt,
                 "stream": true
             }))
@@ -75,5 +75,16 @@ impl CliClient {
             .error_for_status()?;
 
         Ok(result)
+    }
+
+    pub async fn stop_model(&self, model_id: &String) -> Result<String> {
+        let url = format!("{}/api/v1/models/stop", self.base_url);
+        let result = self
+            .client
+            .post(&url)
+            .json(&serde_json::json!({ "id": model_id }))
+            .send()
+            .await;
+        Ok(self.handle_response(result).await?)
     }
 }

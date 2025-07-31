@@ -14,16 +14,14 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::thread;
 use tracing::error;
+use crate::utils::parse_json_model_id::parse_json_model_id;
 
 fn parse_generate_text_params(
     json: &HashMap<String, Value>,
 ) -> Result<(String, String, bool), Error> {
-    let model_id = json
-        .get("model_id")
-        .and_then(Value::as_str)
-        .ok_or_else(|| Error::InvalidRequest("Missing or invalid model_id".to_string()))?
-        .to_string();
 
+    let model_id = parse_json_model_id(json)?;
+    
     let prompt = json
         .get("prompt")
         .and_then(Value::as_str)

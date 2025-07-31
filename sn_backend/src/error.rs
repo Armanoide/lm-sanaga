@@ -19,6 +19,9 @@ pub enum Error {
     #[error("Model name is required")]
     ModelNameRequired,
 
+    #[error("Model ID is required")]
+    ModelIdRequired,
+
     #[error("{0}")]
     InvalidRequest(String),
 }
@@ -30,6 +33,7 @@ impl IntoResponse for Error {
             Error::Inference(_) => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
             Error::ModelNameRequired => axum::http::StatusCode::BAD_REQUEST,
             Error::InvalidRequest(_) => axum::http::StatusCode::BAD_REQUEST,
+            Error::ModelIdRequired => axum::http::StatusCode::BAD_REQUEST,
         };
 
         println!("Error occurred: {:?}", self);

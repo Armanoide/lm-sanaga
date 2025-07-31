@@ -7,6 +7,7 @@ use serde_json::json;
 use sn_core::utils::rw_lock::RwLockExt;
 use std::collections::HashMap;
 use std::sync::Arc;
+use crate::utils::parse_json_model_id::parse_json_model_id;
 
 pub async fn get_model_list(State(state): State<Arc<AppState>>) -> ResultAPI {
     let models_installed: Vec<String> = {
@@ -55,4 +56,15 @@ pub async fn run_model(
     } else {
         Err(Error::ModelNameRequired)
     }
+}
+
+pub async fn stop_model(
+    State(state): State<Arc<AppState>>,
+    json: Json<HashMap<String, Value>>,
+) -> ResultAPI {
+    let id = parse_json_model_id(&json)?;
+    let context = "stopping model";
+    println!("Stopping model with ID: {}", id);
+    state.runner.write_lock(context)?.unload_model(&id);
+    Ok(Json(json!({ "status": "stopped" })))
 }
