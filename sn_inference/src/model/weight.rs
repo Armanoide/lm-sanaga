@@ -1,7 +1,7 @@
 use crate::config::config::Config;
 use crate::error::{Error, Result};
 use crate::utils::d_type::DTypeExt;
-use crate::utils::string::find_json_object_end;
+use crate::utils::string::{find_json_object_end_bytes};
 use glob::glob;
 use memmap2::MmapOptions;
 use mlx_rs::{Array, Dtype};
@@ -60,18 +60,17 @@ impl Weight {
     }
 
     fn read_safetensors_header(
-        file_path: &str,
+        mmap: &memmap2::Mmap,
         buffer: &mut Vec<u8>,
     ) -> Result<(WeightJSON, usize)> {
-        let mut file = File::open(file_path)?;
-        let mut len_bytes = [0u8; HEADER_OFFSET_SAFETENSORS];
 
-        file.read_exact(&mut len_bytes)?;
-        file.read_exact(buffer)?;
+        if mmap.len() < HEADER_MAX_SAFETENSORS {
+            return Err(Error::SafetensorsHeaderReadError);
+        }
+        // Read len_bytes if needed (depending on your format)
+        let buffer = &mmap[HEADER_OFFSET_SAFETENSORS..HEADER_MAX_SAFETENSORS];
 
-        let header_str_with_noise = String::from_utf8_lossy(&buffer).trim_end().to_string();
-        let real_size_header = find_json_object_end(&header_str_with_noise);
-
+        let real_size_header = find_json_object_end_bytes(buffer);
         match real_size_header {
             Some(size_header) => {
                 let buffer_slice = &buffer[..size_header];
@@ -86,16 +85,12 @@ impl Weight {
     }
 
     fn read_safetensors_weights(
-        file_path: &str,
+        mmap: &memmap2::Mmap,
         weights_json: WeightJSON,
         offset_header: usize,
     ) -> Result<HashMap<String, Tensor>> {
         let mut weights: HashMap<String, Tensor> = HashMap::new();
 
-        let file = File::open(file_path).map_err(|_| Error::FileOpenError(file_path.to_owned()))?;
-
-        // Memory-map the entire file
-        let mmap = unsafe { MmapOptions::new().map(&file)? };
 
         let base_offset = offset_header + HEADER_OFFSET_SAFETENSORS;
 
@@ -150,15 +145,21 @@ impl Weight {
         let mut total_expected_tensors: usize = 0;
 
         for file_path in files {
+
+            let file = File::open(file_path).map_err(|_| Error::FileOpenError(file_path.to_owned()))?;
+
+            // Memory-map the entire file
+            let mmap = unsafe { MmapOptions::new().map(&file)? };
+
             // Read header into buffer
             let (weight_json, header_size) =
-                Self::read_safetensors_header(file_path, &mut buffer_header)?;
+                Self::read_safetensors_header(&mmap, &mut buffer_header)?;
 
             total_expected_tensors += weight_json.tensors.len();
 
             let metadata_format = weight_json.metadata.as_ref().and_then(|m| m.format.clone());
 
-            let tensors = match Self::read_safetensors_weights(file_path, weight_json, header_size)
+            let tensors = match Self::read_safetensors_weights(&mmap, weight_json, header_size)
             {
                 Ok(t) => Ok(t),
                 Err(e) => {
