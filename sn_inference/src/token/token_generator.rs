@@ -8,7 +8,7 @@ use crate::utils::mlx::metal_device_info::metal_device_info;
 use crate::utils::mlx::metal_is_available::metal_is_available;
 use crate::utils::mlx::set_wired_limit::set_wired_limit;
 use crossbeam::channel::Sender;
-use mlx_rs::Array;
+use mlx_rs::{Array, Stream};
 use mlx_rs::ops::concatenate;
 use mlx_rs::ops::indexing::{IndexOp, argmax_axis};
 use mlx_rs::transforms::async_eval;
@@ -70,6 +70,7 @@ impl TokenGenerator {
             let context = "reading model to create a prompt cache";
             create_prompt_cache(&*model.read_lock(context)?)
         };
+        let stream = Stream::task_local_or_cpu();
         Ok(TokenGenerator {
             token_sender,
             cache,
@@ -101,11 +102,18 @@ impl TokenGenerator {
         } else {
             model.forward(prompt, &prompt_cache)
         }*/
+
+        let stream = {
+            let context = "read model for stream";
+            self.model.read_lock(context)?.get_stream().clone()
+        };
+
         let context = "read model for forwarding";
         let result = self.model.write_lock(context)?.forward_model(
             &input_prompt,
             None,
             Option::from(self.cache.clone()),
+            stream,
         )?;
         Ok(result)
     }
@@ -116,7 +124,6 @@ impl TokenGenerator {
         input_embeddings: Option<&Array>,
     ) -> Result<(Array, Array)> {
         let input_tokens_batched = input_tokens.flatten(None, None)?.expand_dims(0)?;
-
         let input_embeds_batched = if let Some(emb) = input_embeddings {
             Some(emb.expand_dims(0)?)
         } else {
@@ -237,7 +244,6 @@ impl TokenGenerator {
                     //prompt_progress_callback(total_prompt_tokens, total_prompt_tokens);
                 }
                 if n == self.max_tokens || self.stop {
-                    println!("Reached max tokens or stop condition at n={}", n);
                     break;
                 }
 
@@ -251,7 +257,7 @@ impl TokenGenerator {
                 if z.par_iter().any(|tok| self.eot_ids.contains(tok)) {
                     break;
                 }
-                if n % 256 == 0 {
+                if n % 256 * 8 == 0 {
                     clear_cache();
                 }
                 y = next_y;

@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use crate::cache::k_v_cache::{ArcCacheItem, ArcCacheList};
 use crate::error::{Error, Result};
 use crate::mask::mask::AttentionMask;
@@ -6,10 +7,17 @@ use crate::model::models::llama::llama::ModelLLama;
 use crate::model::weight::{Tensor, Weight};
 use crate::module::Module;
 use crate::quantized::Quantize;
-use mlx_rs::Array;
+use mlx_rs::{Array, Stream};
+use tracing::debug;
 #[derive(Debug)]
 pub enum ModelKind {
     LLaMA(ModelLLama),
+}
+
+impl Drop for ModelKind {
+    fn drop(&mut self) {
+        debug!("ModelKind DROPPED");
+    }
 }
 
 impl Module for ModelKind {
@@ -18,9 +26,10 @@ impl Module for ModelKind {
         x: &Array,
         mask: Option<&AttentionMask>,
         cache: Option<ArcCacheItem>,
+        stream: Option<Arc<Stream>>
     ) -> Result<Array> {
         match self {
-            ModelKind::LLaMA(m) => m.forward(x, mask, cache),
+            ModelKind::LLaMA(m) => m.forward(x, mask, cache, stream),
         }
     }
 
@@ -69,15 +78,22 @@ impl Model for ModelKind {
         x: &Array,
         mask: Option<&AttentionMask>,
         caches: Option<ArcCacheList>,
+        stream: Option<Arc<Stream>>,
     ) -> Result<Array> {
         match self {
-            ModelKind::LLaMA(m) => m.forward_model(x, mask, caches),
+            ModelKind::LLaMA(m) => m.forward_model(x, mask, caches, stream),
         }
     }
 
     fn get_model_bytes(&self) -> u64 {
         match self {
             ModelKind::LLaMA(m) => m.get_model_bytes(),
+        }
+    }
+
+    fn get_stream(&self) -> Option<Arc<Stream>> {
+        match self {
+            ModelKind::LLaMA(m) => m.get_stream(),
         }
     }
 }

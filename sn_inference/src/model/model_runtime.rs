@@ -14,6 +14,7 @@ use sn_core::utils::rw_lock::RwLockExt;
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
+use mlx_rs::Stream;
 use walkdir::WalkDir;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -28,6 +29,8 @@ pub struct ModelRuntime {
     pub tokenizer: Option<Rc<Tokenizer>>,
     #[serde(skip_serializing, skip_deserializing)]
     pub weight: Option<Weight>,
+    #[serde(skip_serializing, skip_deserializing)]
+    pub stream: Option<Arc<Stream>>
 }
 
 impl ModelRuntime {
@@ -37,11 +40,12 @@ impl ModelRuntime {
             return Err(Error::ModelPathNotFound(path.display().to_string()));
         }
 
+        let stream = Some(Arc::new(Stream::default()));
         let model_path = Self::find_model_path_from_root(&root_path)?;
         let config = Rc::new(Config::new(&model_path)?);
         let name = Self::set_name(&config.model);
         let weight = Weight::new(&config)?;
-        let model = create_model_instance(config.clone())?;
+        let model = create_model_instance(config.clone(), stream.clone())?;
         let tokenizer = Rc::new(Tokenizer::new(config.clone())?);
 
         Ok(ModelRuntime {
@@ -52,6 +56,7 @@ impl ModelRuntime {
             model: Some(model),
             tokenizer: Some(tokenizer),
             weight: Some(weight),
+            stream,
         })
     }
 

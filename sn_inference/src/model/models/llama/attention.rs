@@ -10,13 +10,14 @@ use crate::module::Module;
 use crate::quantized::Quantize;
 use crate::utils::maybe_quantized::MaybeQuantizedLinear;
 use crate::utils::scaled_dot_product_attention::scaled_dot_product_attention;
-use mlx_rs::Array;
+use mlx_rs::{Array, Stream};
 use mlx_rs::builder::Builder;
 use mlx_rs::module::Module as MLXModule;
 use mlx_rs::nn::{Linear, LinearBuilder};
 use mlx_rs::quantization::{MaybeQuantized, Quantizable};
 use sn_core::utils::rw_lock::{RwLockExt, RwLockExtOpt};
 use std::rc::Rc;
+use std::sync::Arc;
 
 #[derive(Clone, Debug)]
 pub struct AttentionLlama {
@@ -49,6 +50,7 @@ impl Module for AttentionLlama {
         x: &Array,
         mask: Option<&AttentionMask>,
         cache: Option<ArcCacheItem>,
+        stream: Option<Arc<Stream>>,
     ) -> Result<Array> {
         let shape = x.shape();
         let b = shape[0];
@@ -59,23 +61,36 @@ impl Module for AttentionLlama {
         let mut values = self.v_proj.forward(x)?;
 
         // Prepare the queries, keys and values for the attention computation
-        queries = queries
-            .reshape(&[b, l, self.n_heads, -1])?
-            .transpose_axes(&[0, 2, 1, 3])?;
-        keys = keys
-            .reshape(&[b, l, self.n_kv_heads, -1])?
-            .transpose_axes(&[0, 2, 1, 3])?;
-        values = values
-            .reshape(&[b, l, self.n_kv_heads, -1])?
-            .transpose_axes(&[0, 2, 1, 3])?;
+        if let Some(stream) = stream.clone() {
+            queries = queries
+                .reshape_device(&[b, l, self.n_heads, -1], &stream)?
+                .transpose_axes_device(&[0, 2, 1, 3], &stream)?;
+            keys = keys
+                .reshape_device(&[b, l, self.n_kv_heads, -1], &stream)?
+                .transpose_axes_device(&[0, 2, 1, 3], &stream)?;
+            values = values
+                .reshape_device(&[b, l, self.n_kv_heads, -1], &stream)?
+                .transpose_axes_device(&[0, 2, 1, 3], &stream)?;
+        } else {
+            queries = queries
+                .reshape(&[b, l, self.n_heads, -1])?
+                .transpose_axes(&[0, 2, 1, 3])?;
+            keys = keys
+                .reshape(&[b, l, self.n_kv_heads, -1])?
+                .transpose_axes(&[0, 2, 1, 3])?;
+            values = values
+                .reshape(&[b, l, self.n_kv_heads, -1])?
+                .transpose_axes(&[0, 2, 1, 3])?;
+        }
+
 
         let mut maybe_cache_ref = cache.as_ref(); //.map(|rc| rc);
 
         if let Some(ref mut cache_ref) = maybe_cache_ref {
             let context = "reading cache for offset";
             let offset = cache_ref.read_lock(context)?.offset;
-            queries = self.rope.forward(&queries, offset)?;
-            keys = self.rope.forward(&keys, offset)?;
+            queries = self.rope.forward(&queries, offset, stream.clone())?;
+            keys = self.rope.forward(&keys, offset, stream.clone())?;
             let context = "updating cache";
             let (k, v) = cache_ref
                 .write_lock(context)?
@@ -83,8 +98,8 @@ impl Module for AttentionLlama {
             keys = k;
             values = v;
         } else {
-            queries = self.rope.forward(&queries, 0)?;
-            keys = self.rope.forward(&keys, 0)?;
+            queries = self.rope.forward(&queries, 0, stream.clone())?;
+            keys = self.rope.forward(&keys, 0, stream.clone())?;
         }
 
         let output = scaled_dot_product_attention(
@@ -94,9 +109,16 @@ impl Module for AttentionLlama {
             maybe_cache_ref.read_lock_mut("")?.as_deref(),
             self.scale as f32,
             mask,
+            stream.clone(),
         )?;
 
-        let output = output.transpose_axes(&[0, 2, 1, 3])?.reshape(&[b, l, -1])?;
+        let output = if let Some(stream) = stream.clone() {
+            output
+                .transpose_axes_device(&[0, 2, 1, 3], &stream.clone())?
+                .reshape_device(&[b, l, -1], stream.clone())?
+        } else {
+            output.transpose_axes(&[0, 2, 1, 3])?.reshape(&[b, l, -1])?
+        };
         //panic!();
         Ok(self.o_proj.forward(&output)?)
     }
@@ -127,7 +149,7 @@ impl Module for AttentionLlama {
 }
 
 impl AttentionLlama {
-    pub fn new(llama_config: Rc<LLaMAConfig>) -> Result<AttentionLlama> {
+    pub fn new(llama_config: Rc<LLaMAConfig>, stream: Option<Arc<Stream>>) -> Result<AttentionLlama> {
         let hidden_size = llama_config.hidden_size;
         let n_heads = llama_config.num_attention_heads;
         let n_kv_heads = llama_config.num_key_value_heads;
@@ -191,6 +213,7 @@ impl AttentionLlama {
             llama_config.rope_theta,
             false,
             ConfigModel::LLaMA(llama_config),
+            stream,
         )?;
 
         Ok(AttentionLlama {

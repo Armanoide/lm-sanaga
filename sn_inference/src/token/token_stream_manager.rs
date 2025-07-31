@@ -60,7 +60,7 @@ impl TokenStreamManager {
                 error!("Failed to acquire write lock in thread.");
             }
         });
-        println!("Token generation thread spawned.");
+        debug!("Token generation thread spawned.");
         Ok(())
     }
 
@@ -80,7 +80,7 @@ impl TokenStreamManager {
                 .take()
                 .ok_or_else(|| Error::TokenGenerationStartFailure)?;
 
-            println!("Waiting for tokens...");
+            debug!("Waiting for tokens...");
             for mut gti in rx.iter() {
                 // Timing inside the prompt prefill loop
                 let _step_start = Instant::now();

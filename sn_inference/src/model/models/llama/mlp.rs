@@ -6,12 +6,13 @@ use crate::model::weight::Tensor;
 use crate::module::Module;
 use crate::quantized::Quantize;
 use crate::utils::maybe_quantized::MaybeQuantizedLinear;
-use mlx_rs::Array;
+use mlx_rs::{Array, Stream};
 use mlx_rs::builder::Builder;
 use mlx_rs::module::Module as MLXModule;
 use mlx_rs::nn::{Linear, LinearBuilder, silu};
 use mlx_rs::quantization::{MaybeQuantized, Quantizable};
 use std::rc::Rc;
+use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub struct MLPLlama {
@@ -41,6 +42,7 @@ impl Module for MLPLlama {
         x: &Array,
         _: Option<&AttentionMask>,
         _: Option<ArcCacheItem>,
+        stream: Option<Arc<Stream>>
     ) -> Result<Array> {
         // Apply gate projection and activation
         let gated = silu(self.gate_proj.forward(x)?)?;

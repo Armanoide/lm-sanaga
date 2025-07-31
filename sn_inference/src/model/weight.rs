@@ -49,7 +49,7 @@ pub struct Metadata {
 }
 #[derive(Debug)]
 pub struct Weight {
-    pub metadata: Metadata,
+    //pub metadata: Metadata,
     pub tensors: HashMap<String, Tensor>,
 }
 
@@ -169,9 +169,9 @@ impl Weight {
 
             list.push(Weight {
                 tensors,
-                metadata: Metadata {
-                    format: metadata_format,
-                },
+                //metadata: Metadata {
+                //    format: metadata_format,
+                //},
             });
         }
 
@@ -190,20 +190,22 @@ impl Weight {
 
     fn merge_weights(list: Vec<Weight>) -> Weight {
         let mut merged_tensors = HashMap::new();
-        let mut merged_metadata = Metadata { format: None };
+        //let mut merged_metadata = Metadata { format: None };
 
-        for weight in list {
+        for mut weight in list {
             // Take the first non-None metadata
-            if merged_metadata.format.is_none() {
-                merged_metadata = weight.metadata;
-            }
+            //if merged_metadata.format.is_none() {
+            //    merged_metadata = weight.metadata;
+            //}
 
             // Extend the tensor map
-            merged_tensors.extend(weight.tensors);
+            //merged_tensors.extend(weight.tensors);
+            merged_tensors.extend(std::mem::take(&mut weight.tensors));
+
         }
 
         Weight {
-            metadata: merged_metadata,
+            //metadata: merged_metadata,
             tensors: merged_tensors,
         }
     }
@@ -233,5 +235,11 @@ impl Weight {
                 Weight::find_model(model_path, &"weight*.safetensors")
             }
         }
+    }
+}
+
+impl Drop for Weight {
+    fn drop(&mut self) {
+        println!("🚨 Tokenizer Weight");
     }
 }

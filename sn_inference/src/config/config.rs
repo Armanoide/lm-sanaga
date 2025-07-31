@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
 use std::rc::Rc;
+use crate::model::model_kind::ModelKind;
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Config {
     pub model: Rc<ConfigModel>,
@@ -49,5 +51,12 @@ impl Config {
         let data = fs::read_to_string(&path)?;
         let config: T = serde_json::from_str(&data)?;
         Ok(config)
+    }
+}
+
+
+impl Drop for Config {
+    fn drop(&mut self) {
+        println!("🚨 Config DROPPED");
     }
 }

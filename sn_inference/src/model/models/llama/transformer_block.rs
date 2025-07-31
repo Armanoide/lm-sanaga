@@ -8,11 +8,12 @@ use crate::model::weight::Tensor;
 use crate::module::Module;
 use crate::quantized::Quantize;
 use crate::utils::rms_norm::NormExt;
-use mlx_rs::Array;
+use mlx_rs::{Array, Stream};
 use mlx_rs::builder::Builder;
 use mlx_rs::module::Module as MLXModule;
 use mlx_rs::nn::{RmsNorm, RmsNormBuilder};
 use std::rc::Rc;
+use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub struct TransformerBlockLlama {
@@ -37,13 +38,14 @@ impl Module for TransformerBlockLlama {
         x: &Array,
         mask: Option<&AttentionMask>,
         cache: Option<ArcCacheItem>,
+        stream: Option<Arc<Stream>>
     ) -> Result<Array> {
         let normed_input = self.input_layernorm.forward(x)?;
-        let attn_output = self.self_attn.forward(&normed_input, mask, cache)?;
+        let attn_output = self.self_attn.forward(&normed_input, mask, cache, stream.clone())?;
         let residual = x + attn_output;
         let normed_residual = self.post_attention_layernorm.forward(&residual)?;
         // No cache for MLP
-        let mlp_output = self.mlp.forward(&normed_residual, mask, None)?;
+        let mlp_output = self.mlp.forward(&normed_residual, mask, None, stream)?;
         Ok(residual + mlp_output)
     }
 
@@ -73,8 +75,8 @@ impl Module for TransformerBlockLlama {
 }
 
 impl TransformerBlockLlama {
-    pub fn new(llama_config: Rc<LLaMAConfig>) -> Result<TransformerBlockLlama> {
-        let self_attn = AttentionLlama::new(llama_config.clone())?;
+    pub fn new(llama_config: Rc<LLaMAConfig>, stream: Option<Arc<Stream>>) -> Result<TransformerBlockLlama> {
+        let self_attn = AttentionLlama::new(llama_config.clone(), stream)?;
         let mlp = MLPLlama::new(llama_config.clone())?;
 
         let input_layernorm = RmsNormBuilder {

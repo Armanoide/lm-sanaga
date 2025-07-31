@@ -15,6 +15,11 @@ pub struct Tokenizer {
     config: Rc<Config>,
 }
 
+impl Drop for Tokenizer {
+    fn drop(&mut self) {
+        println!("🚨 Tokenizer DROPPED");
+    }
+}
 impl Tokenizer {
     pub fn new(config: Rc<Config>) -> Result<Tokenizer> {
         debug!("loading config in {}", &config.tokenizer_path);

@@ -8,10 +8,9 @@ use crate::model::models::llama::transformer_block::TransformerBlockLlama;
 use crate::model::weight::{Tensor, Weight};
 use crate::module::Module;
 use crate::quantized::Quantize;
-use crate::token::token_generator::TokenGenerator;
 use crate::utils::maybe_quantized::{MaybeQuantizedEmbedding, MaybeQuantizedLinear};
 use crate::utils::rms_norm::NormExt;
-use mlx_rs::Array;
+use mlx_rs::{Array, Stream};
 use mlx_rs::builder::Builder;
 use mlx_rs::module::Module as MLXModule;
 use mlx_rs::nn::RmsNorm;
@@ -30,6 +29,7 @@ pub struct ModelLLama {
     pub lm_head: MaybeQuantized<Linear>,
     pub embed_tokens: MaybeQuantized<Embedding>,
     pub bytes: u64,
+    pub stream: Option<Arc<Stream>>,
 }
 
 impl Quantize for ModelLLama {
@@ -60,6 +60,7 @@ impl Module for ModelLLama {
         _: &Array,
         _: Option<&AttentionMask>,
         _: Option<ArcCacheItem>,
+        stream: Option<Arc<Stream>>
     ) -> Result<Array> {
         unimplemented!()
     }
@@ -125,6 +126,7 @@ impl Model for ModelLLama {
         x: &Array,
         mask: Option<&AttentionMask>,
         caches: Option<ArcCacheList>,
+        stream: Option<Arc<Stream>>,
     ) -> Result<Array> {
         let mut h = self.embed_tokens.forward(&x)?;
 
@@ -146,9 +148,9 @@ impl Model for ModelLLama {
         for (i, layer) in self.layers.iter_mut().enumerate() {
             let context = format!("reding cache for layer {}", i);
             if let Some(cache) = caches.read_lock(context.as_str())?.get(i) {
-                h = layer.forward(&h, mask, Some(cache.clone()))?;
+                h = layer.forward(&h, mask, Some(cache.clone()), stream.clone())?;
             } else {
-                h = layer.forward(&h, mask, None)?;
+                h = layer.forward(&h, mask, None, stream.clone())?;
             }
         }
 
@@ -164,12 +166,16 @@ impl Model for ModelLLama {
     fn get_model_bytes(&self) -> u64 {
         self.bytes
     }
+
+    fn get_stream(&self) -> Option<Arc<Stream>> {
+        self.stream.clone()
+    }
 }
 
 impl ModelLLama {
-    pub fn new(llama_config: Rc<LLaMAConfig>) -> Result<ModelLLama> {
+    pub fn new(llama_config: Rc<LLaMAConfig>, stream: Option<Arc<Stream>>) -> Result<ModelLLama> {
         let layers = (0..llama_config.num_hidden_layers)
-            .map(|_| TransformerBlockLlama::new(llama_config.clone()))
+            .map(|_| TransformerBlockLlama::new(llama_config.clone(), stream.clone()))
             .collect::<Result<Vec<_>>>()?;
 
         let norm = RmsNormBuilder {
@@ -199,6 +205,7 @@ impl ModelLLama {
             lm_head,
             embed_tokens,
             bytes: 0,
+            stream
         })
     }
 }
