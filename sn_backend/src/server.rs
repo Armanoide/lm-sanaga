@@ -1,4 +1,6 @@
+pub(crate) use crate::app_state::AppState;
 use crate::model;
+use crate::text;
 use axum::ServiceExt;
 use axum::http::StatusCode;
 use sn_core::error::Result;
@@ -8,7 +10,6 @@ use tower_http::trace::{
     DefaultMakeSpan, DefaultOnFailure, DefaultOnRequest, DefaultOnResponse, TraceLayer,
 };
 use tracing::Level;
-pub(crate) use crate::app_state::AppState;
 
 async fn fallback() -> (StatusCode, &'static str) {
     (StatusCode::NOT_FOUND, "Not Found")
@@ -19,6 +20,7 @@ pub async fn http_server(runner: Arc<RwLock<Runner>>) -> Result<()> {
 
     let routes_api = axum::Router::new()
         .merge(model::route::routes())
+        .merge(text::route::routes())
         .with_state(app_state.clone());
 
     let router = axum::Router::new()

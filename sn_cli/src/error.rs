@@ -14,4 +14,16 @@ pub enum Error {
 
     #[error("Model {0} not installed")]
     ModelNotInstalled(String),
+
+    #[error("Model {0} is not available: {1}")]
+    FailedToRunModel(String, String),
+
+    #[error("Model {0} is not compatible with the current version of sn")]
+    UnExpectedRunResponse(String),
+
+    #[error("Failed to parse response: {0}")]
+    FailedParseResponse(#[from] serde_json::Error),
+
+    #[error("I/O error: {0}")]
+    IOError(#[from] std::io::Error),
 }

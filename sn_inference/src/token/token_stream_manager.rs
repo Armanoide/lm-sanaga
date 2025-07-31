@@ -13,6 +13,7 @@ use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tracing::{debug, error};
 
+pub type PromptStreamCallback = Sender<String>;
 pub struct TokenStreamManager {
     tokenizer: Rc<Tokenizer>,
     token_generator: Option<Arc<RwLock<TokenGenerator>>>,
@@ -63,7 +64,11 @@ impl TokenStreamManager {
         Ok(())
     }
 
-    pub fn generate_text(&mut self, prompt: Vec<u32>) -> Result<()> {
+    pub fn generate_text(
+        &mut self,
+        prompt: Vec<u32>,
+        callback: Option<PromptStreamCallback>,
+    ) -> Result<()> {
         self.prelude_generate_text(prompt)?;
         let eot_ids = self.tokenizer.eot_ids();
         let mut stop = false;
@@ -85,6 +90,11 @@ impl TokenStreamManager {
 
                 self.tokenizer
                     .decode_response_from_generated_token_info(&mut gti);
+
+                if let Some(cb) = &callback {
+                    // Call the callback with the decoded response
+                    let _ = cb.send(gti.text.clone());
+                }
 
                 if let Err(e) = gti.end(None) {
                     error!("Could not set the end time for the generated token: {}", e);

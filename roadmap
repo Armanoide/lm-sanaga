@@ -48,3 +48,50 @@
                            │
                            ▼
        (Optional: decode with tokenizer to readable text)
+
+
+┌────────────────────────────────────────────────────────────────────┐
+│                   Your Axum Handler (async context)                │
+│       fn generate_text(...) -> ResultAPIStream {                  │
+│           let (tx, rx) = tokio::mpsc::channel();                  │
+│                                                                   │
+│           std::thread::spawn(move || {                            │◄───── You spawn a sync thread
+│               let _ = runner.generate_text(..., Some(tx));        │          and call your sync model
+│           });                                                     │
+│                                                                   │
+│           let stream = ReceiverStream::new(rx);                   │
+│           let body = Body::from_stream(stream);                   │
+│           Ok(response)                                            │
+│       }                                                           │
+└────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+                    ❌ Problem: `tx.send(...)` in thread is async!
+                                      │
+                You can’t use `tokio::mpsc::Sender` in `std::thread::spawn`
+                                      ▼
+          ┌────────────────────────────────────────────────────────┐
+          │                     ✅ Correct Pattern                  │
+          └────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│ Axum Handler:                                                           │
+│ fn generate_text(...) {                                                 │
+│   let (cb_tx, cb_rx) = crossbeam::channel::unbounded();                │◄── Used inside sync code
+│   let (tx, rx) = tokio::mpsc::unbounded_channel();                     │
+│                                                                         │
+│   thread::spawn(move || {                                               │
+│     let _ = runner.generate_text(..., Some(cb_tx));                     │◄── Token generator sends here
+│   });                                                                   │
+│                                                                         │
+│   tokio::spawn_blocking(move || {                                       │
+│     for token in cb_rx {                                               │
+│         let _ = tx.send(format!("data: {}\n\n", token));               │
+│     }                                                                   │
+│   });                                                                   │
+│                                                                         │
+│   let stream = UnboundedReceiverStream::new(rx);                        │
+│   let body = Body::from_stream(stream);                                 │
+│   Ok(response)                                                          │
+└──────────────────────────────────────────────────────────────────────────┘

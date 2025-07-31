@@ -6,7 +6,7 @@ use crate::model::model::Model;
 use crate::model::model_kind::ModelKind;
 use crate::model::weight::Weight;
 use crate::quantized::Quantize;
-use crate::token::token_stream_manager::TokenStreamManager;
+use crate::token::token_stream_manager::{PromptStreamCallback, TokenStreamManager};
 use crate::tokenizer::tokenizer::Tokenizer;
 use serde::{Deserialize, Serialize};
 use sn_core::conversation::conversation::Conversation;
@@ -102,12 +102,16 @@ impl ModelRuntime {
         Ok(())
     }
 
-    pub fn generate_text(&self, conversation: &Conversation) -> Result<()> {
+    pub fn generate_text(
+        &self,
+        conversation: &Conversation,
+        callback: Option<PromptStreamCallback>,
+    ) -> Result<()> {
         if let (Some(tokenizer), Some(model)) = (&self.tokenizer, &self.model) {
             let (inputs, _) = tokenizer.apply_chat_template(conversation)?;
             let prompt = tokenizer.encode_prompt(inputs)?;
             let mut sr = TokenStreamManager::new(model.clone(), tokenizer.clone());
-            let _ = sr.generate_text(prompt);
+            let _ = sr.generate_text(prompt, callback)?;
         }
         Ok(())
     }

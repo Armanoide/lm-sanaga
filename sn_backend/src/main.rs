@@ -13,6 +13,8 @@ mod error;
 mod middleware;
 mod model;
 pub mod server;
+mod text;
+mod utils;
 
 use std::sync::RwLock;
 fn main() {

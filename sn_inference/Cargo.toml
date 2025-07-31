@@ -15,9 +15,10 @@ hex = "0.4.3"
 thiserror={workspace = true}
 itertools = "0.14.0"
 rayon = "1.10.0"
-crossbeam = "0.8.4"
+crossbeam = { workspace = true }
 dhat = "0.3.3"
 memmap2 = "0.9.7"
 tracing = { workspace = true }
 tokenizers = "0.21.4-dev.0"
 minijinja="2.11.0"
+tokio = { workspace = true }

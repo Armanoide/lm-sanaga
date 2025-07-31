@@ -60,4 +60,20 @@ impl CliClient {
             .await;
         Ok(self.handle_response(result).await?)
     }
+    pub async fn send_prompt(&self, model_id: &str, prompt: &str) -> Result<Response> {
+        let url = format!("{}/api/v1/text/generate", self.base_url);
+        let result = self
+            .client
+            .post(&url)
+            .json(&serde_json::json!({
+                "model_id": model_id,
+                "prompt": prompt,
+                "stream": true
+            }))
+            .send()
+            .await?
+            .error_for_status()?;
+
+        Ok(result)
+    }
 }

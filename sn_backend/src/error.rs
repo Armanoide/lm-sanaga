@@ -4,6 +4,7 @@ use serde_json;
 use serde_json::{Value, json};
 use thiserror::Error;
 
+pub type ResultAPIStream = std::result::Result<Response, crate::error::Error>;
 pub type ResultAPI = std::result::Result<Json<Value>, crate::error::Error>;
 pub type Result<T> = std::result::Result<T, crate::error::Error>;
 
@@ -17,6 +18,9 @@ pub enum Error {
 
     #[error("Model name is required")]
     ModelNameRequired,
+
+    #[error("{0}")]
+    InvalidRequest(String),
 }
 
 impl IntoResponse for Error {
@@ -25,6 +29,7 @@ impl IntoResponse for Error {
             Error::Core(_) => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
             Error::Inference(_) => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
             Error::ModelNameRequired => axum::http::StatusCode::BAD_REQUEST,
+            Error::InvalidRequest(_) => axum::http::StatusCode::BAD_REQUEST,
         };
 
         println!("Error occurred: {:?}", self);

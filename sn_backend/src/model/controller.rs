@@ -1,4 +1,4 @@
-use crate::error::{ResultAPI, Error};
+use crate::error::{Error, ResultAPI};
 use crate::server::AppState;
 use axum::Json;
 use axum::extract::State;
@@ -23,11 +23,14 @@ pub async fn get_models_running(State(state): State<Arc<AppState>>) -> ResultAPI
         let guard = &state.runner;
         &guard.read_lock(context)?.models
     };
-    let models = models.iter()
-        .map(|model| json!({
-            "name": model.name,
-            "id": model.id,
-        }))
+    let models = models
+        .iter()
+        .map(|model| {
+            json!({
+                "name": model.name,
+                "id": model.id,
+            })
+        })
         .collect::<Vec<_>>();
     Ok(Json(json!(models)))
 }
@@ -43,10 +46,7 @@ pub async fn run_model(
     {
         let model_id = {
             let context = "launching model";
-            state
-                .runner
-                .write_lock(context)?
-                .load_model_name(&name)?
+            state.runner.write_lock(context)?.load_model_name(&name)?
         };
 
         Ok(Json(json!({

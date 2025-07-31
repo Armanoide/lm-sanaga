@@ -1,8 +1,10 @@
 use crate::error::{Error, Result};
 use crate::model::model_runtime::ModelRuntime;
+use crate::token::token_stream_manager::PromptStreamCallback;
 use serde::{Deserialize, Serialize};
 use sn_core::conversation::conversation::Conversation;
 use tracing::info;
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Runner {
     pub models: Vec<ModelRuntime>,
@@ -16,20 +18,26 @@ impl Runner {
 
     fn generate_path_id(salt: &String) -> String {
         let id = hex::encode(salt.as_bytes());
-        String::from(&id[..8])
+        String::from(&id[(id.len() - 10)..])
     }
     pub fn load_model_name(&mut self, name: &str) -> Result<(String)> {
         let path = format!("{BASE_PATH}/{name}");
         let id = Self::generate_path_id(&path);
 
         if let Some(model_runtime) = self.get_model_by_id(&id) {
-            info!("Model {} already loaded in container {}", model_runtime.name, model_runtime.id);
+            info!(
+                "Model {} already loaded in container {}",
+                model_runtime.name, model_runtime.id
+            );
             return Ok(id);
         }
 
         let mut model_runtime = ModelRuntime::load_with_path(path.as_str(), &id)?;
         let _ = &model_runtime.routine_model()?;
-        info!("Model {} loaded in container {}", model_runtime.name, model_runtime.id);
+        info!(
+            "Model {} loaded in container {}",
+            model_runtime.name, model_runtime.id
+        );
         self.models.push(model_runtime);
         Ok(id)
     }
@@ -39,9 +47,17 @@ impl Runner {
     }
     pub fn unload_model(&self, model_id: &str) {}
 
-    pub fn generate_text(&self, model_id: &str, conversation: &Conversation) -> Result<()> {
-        let model_runtime = self.models.first().unwrap();
-        model_runtime.generate_text(conversation)
+    pub fn generate_text(
+        &self,
+        model_id: &str,
+        conversation: &Conversation,
+        callback: Option<PromptStreamCallback>,
+    ) -> Result<()> {
+        if let Some(model_runtime) = self.get_model_by_id(model_id) {
+            model_runtime.generate_text(conversation, callback)
+        } else {
+            Err(Error::ModelRuntimeNotFoundWithId(model_id.to_string()))
+        }
     }
 
     pub fn scan_model_installed(&self) -> Result<Vec<String>> {
