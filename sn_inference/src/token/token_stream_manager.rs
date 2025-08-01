@@ -16,7 +16,7 @@ use tracing::{debug, error};
 pub type PromptStreamCallback = Sender<String>;
 pub struct TokenStreamManager {
     tokenizer: Rc<Tokenizer>,
-    token_generator: Option<Arc<RwLock<TokenGenerator>>>,
+    pub token_generator: Option<Arc<RwLock<TokenGenerator>>>,
     model: Arc<RwLock<ModelKind>>,
     stop: bool,
     prompt_len: usize,
@@ -110,31 +110,7 @@ impl TokenStreamManager {
             return Err(Error::TokenGenerationStartFailure);
         }
 
-        if let Some(token_generator) = &self.token_generator {
-            let total_generated_tokens = {
-                let context = "reading total_generated_tokens from token_generator";
-                token_generator.read_lock(context)?.total_generated_tokens
-            };
-            let generation_duration = {
-                let context = "reading generation_duration from token_generator";
-                token_generator.read_lock(context)?.generation_duration
-            };
-            let prefill_duration = {
-                let context = "reading prefill_duration from token_generator";
-                token_generator.read_lock(context)?.prefill_duration
-            };
 
-            let generation_tps = total_generated_tokens as f64 / generation_duration;
-            println!("\n\nGeneration TPS: {:.2}", generation_tps);
-
-            let prompt_tps = match prefill_duration {
-                0.0 => 0.0,
-                duration => total_generated_tokens as f64 / duration,
-            };
-            println!("Prompt TPS: {:.2} tokens/sec", prompt_tps);
-
-            println!("Total generated tokens: {}", total_generated_tokens);
-        }
 
         Ok(())
     }

@@ -47,8 +47,7 @@ pub struct TokenGenerator {
     stop: bool,
     prompt_len: usize,
     options: Option<TokenGeneratorOpts>,
-    token_sender: Option<Sender<TokenGeneratedInfo>>, //pub quantize_cache_fn: Box<dyn Fn(&mut Cache) + 'a>,
-    //pub prompt_progress_callback: Box<dyn Fn(usize, usize) + 'a>,
+    token_sender: Option<Sender<TokenGeneratedInfo>>,
     pub total_generated_tokens: usize,
     pub total_prompt_duration: f64,
     pub prefill_duration: f64,
@@ -136,11 +135,13 @@ impl TokenGenerator {
             };
 
             for processor in &self.logits_processors {
-                logits = processor(self.tokens.as_ref().unwrap(), &logits)?;
+                if let Some(tokens) = &self.tokens {
+                    logits = processor(tokens, &logits)?;
+                }
             }
         }
 
-        //quantize_cache_fn(&mut prompt_cache);
+        //Todo: quantize_cache_fn(&mut prompt_cache);
 
         let temperature = 1;
 
@@ -205,7 +206,6 @@ impl TokenGenerator {
             // Assume cache state is some vector of arrays
             //Todo: let _ = self.prompt_cache.state().iter().map(|s| s.eval()).collect::<Result<Vec<_>>>()?;
 
-            //prompt_progress_callback(prompt_processed_tokens, total_prompt_tokens);
             prompt_processed_tokens += prefill_step_size;
             println!(
                 "Next Processed prompt tokens: {} / {}",
@@ -231,10 +231,8 @@ impl TokenGenerator {
                 }
                 let (next_y, next_logprobs) = self.step(&y, None)?;
                 async_eval([&next_y, &next_logprobs])?;
-                //gti.set_end_generation_timestamp();
                 if n == 0 {
                     y.eval()?;
-                    //prompt_progress_callback(total_prompt_tokens, total_prompt_tokens);
                 }
                 if n == self.max_tokens || self.stop {
                     println!("Reached max tokens or stop condition at n={}", n);
