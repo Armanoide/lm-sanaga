@@ -26,10 +26,10 @@ async fn try_main() -> Result<()> {
             ModelCommands::PS { .. } => commands::model::ps::handle(&cli_client).await?,
             ModelCommands::Run { model, .. } => {
                 commands::model::run::handle(&cli_client, model).await?
-            },
+            }
             ModelCommands::Stop { model, .. } => {
                 commands::model::stop::handle(&cli_client, model).await?
-            },
+            }
         },
     }
 

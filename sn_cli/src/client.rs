@@ -1,5 +1,6 @@
 use crate::error::{Error, Result};
 use reqwest::{Client, Response};
+use sn_core::server::payload::generate_text_request::GenerateTextRequest;
 
 pub struct CliClient {
     client: Client,
@@ -60,16 +61,12 @@ impl CliClient {
             .await;
         Ok(self.handle_response(result).await?)
     }
-    pub async fn send_prompt(&self, model_id: &str, prompt: &str) -> Result<Response> {
-        let url = format!("{}/api/v1/text/generate", self.base_url);
+    pub async fn send_prompt(&self, json: &GenerateTextRequest) -> Result<Response> {
+        let url = format!("{}/api/v1/texts/generate", self.base_url);
         let result = self
             .client
             .post(&url)
-            .json(&serde_json::json!({
-                "id": model_id,
-                "prompt": prompt,
-                "stream": true
-            }))
+            .json(&serde_json::json!(json))
             .send()
             .await?
             .error_for_status()?;

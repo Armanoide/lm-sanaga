@@ -3,7 +3,10 @@ use crate::error::Result;
 use futures_util::StreamExt;
 use std::io;
 use std::io::{BufRead, Write};
-pub async fn simple_prompt(cli_client: &CliClient, model_id: &str) -> Result<()> {
+use std::sync::Arc;
+use sn_core::server::payload::generate_text_request::GenerateTextRequest;
+
+pub async fn simple_prompt(cli_client: &CliClient, model_id: Arc<str>) -> Result<()> {
     println!(
         "Model launched in container {}\nType your prompt (or 'exit' to quit):",
         model_id
@@ -22,13 +25,19 @@ pub async fn simple_prompt(cli_client: &CliClient, model_id: &str) -> Result<()>
             continue;
         }
 
-        let input = input.trim();
+        let prompt = input.trim().to_string();
         if input.eq_ignore_ascii_case("exit") || input.eq_ignore_ascii_case("quit") {
             println!("Exiting prompt.");
             break;
         }
 
-        let response = cli_client.send_prompt(model_id, input).await?;
+        let response = cli_client.send_prompt(&GenerateTextRequest {
+            model_id: model_id.clone(),
+            prompt,
+            stream: true,
+            last_message_id: None,
+            user_id: None,
+        }).await?;
         let mut stream = response.bytes_stream();
         while let Some(chunk) = stream.next().await {
             let chunk = chunk?;

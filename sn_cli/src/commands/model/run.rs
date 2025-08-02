@@ -3,6 +3,7 @@ use crate::error::{Error, Result};
 use crate::prompt::prompt::simple_prompt;
 use serde_json::Value;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 pub async fn handle(cli_client: &CliClient, model_name: Option<String>) -> Result<()> {
     if let Some(name) = model_name {
@@ -16,6 +17,7 @@ pub async fn handle(cli_client: &CliClient, model_name: Option<String>) -> Resul
             .and_then(|id| id.as_str())
             .and_then(|id| if id.is_empty() { None } else { Some(id) })
         {
+            let id: Arc<str> = Arc::from(id);
             simple_prompt(cli_client, id).await?;
             Ok(())
         } else {
