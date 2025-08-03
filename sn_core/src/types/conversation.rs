@@ -1,6 +1,7 @@
-use crate::db::message::Message;
-use crate::db::message_stats::MessageStats;
+use crate::types::message::Message;
+use crate::types::message_stats::MessageStats;
 
+#[derive(Debug, Clone, Default)]
 pub struct Conversation {
     pub messages: Vec<Message>,
 }

@@ -24,3 +24,5 @@ _MODEL
 /venv
 dhat-heap.json
 flamegraph.svg
+*.samply
+.env

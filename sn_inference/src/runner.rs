@@ -1,9 +1,9 @@
 use crate::error::{Error, Result};
-use crate::model::model_runtime::ModelRuntime;
+use crate::model::model_runtime::{GenerateTextResult, ModelRuntime};
 use crate::token::token_stream_manager::PromptStreamCallback;
 use serde::{Deserialize, Serialize};
-use sn_core::conversation::conversation::Conversation;
 use tracing::info;
+use sn_core::types::conversation::Conversation;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Runner {
@@ -46,11 +46,13 @@ impl Runner {
         self.models.iter().find(|m| m.id == model_id)
     }
     pub fn unload_model(&mut self, model_id: &str) {
-        self.models.iter().position(|model| model.id == model_id)
+        self.models
+            .iter()
+            .position(|model| model.id == model_id)
             .map(|index| {
-            info!("Unloading model: {}", self.models[index].name);
-            self.models.remove(index);
-        });
+                info!("Unloading model: {}", self.models[index].name);
+                self.models.remove(index);
+            });
     }
 
     pub fn generate_text(
@@ -58,7 +60,7 @@ impl Runner {
         model_id: &str,
         conversation: &Conversation,
         callback: Option<PromptStreamCallback>,
-    ) -> Result<()> {
+    ) -> Result<GenerateTextResult>  {
         if let Some(model_runtime) = self.get_model_by_id(model_id) {
             model_runtime.generate_text(conversation, callback)
         } else {

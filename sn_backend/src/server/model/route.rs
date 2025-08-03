@@ -1,7 +1,7 @@
-use crate::app_state::AppState;
-use crate::http_server::model::controller::{get_model_list, get_models_running, run_model, stop_model};
 use axum::routing::{get, post};
 use std::sync::Arc;
+use crate::server::app_state::AppState;
+use crate::server::model::controller::{get_model_list, get_models_running, run_model, stop_model};
 
 pub fn routes() -> axum::Router<Arc<AppState>> {
     axum::Router::new()

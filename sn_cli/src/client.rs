@@ -1,5 +1,6 @@
 use crate::error::{Error, Result};
 use reqwest::{Client, Response};
+use sn_core::server::payload::create_session_request::CreateSessionRequest;
 use sn_core::server::payload::generate_text_request::GenerateTextRequest;
 
 pub struct CliClient {
@@ -80,6 +81,17 @@ impl CliClient {
             .client
             .post(&url)
             .json(&serde_json::json!({ "id": model_id }))
+            .send()
+            .await;
+        Ok(self.handle_response(result).await?)
+    }
+
+    pub async fn create_session(&self, request: &CreateSessionRequest) -> Result<String> {
+        let url = format!("{}/api/v1/sessions", self.base_url);
+        let result = self
+            .client
+            .post(&url)
+            .json(&serde_json::json!(request))
             .send()
             .await;
         Ok(self.handle_response(result).await?)

@@ -26,6 +26,20 @@ impl KVCache {
         }
     }
 
+
+    pub fn get_state(&self) -> (Array, Array) {
+        if let (Some(keys), Some(values)) = (&self.keys, &self.values) {
+            if keys.shape()[2] == self.offset {
+                return (keys.clone(), values.clone());
+            }
+              return (
+                  keys.index((.., ..self.offset, ..)),
+                  values.index((.., ..self.offset, ..))
+              )
+        }
+       (Array::from_int(0), Array::from_int(0))
+    }
+    
     #[allow(non_snake_case)]
     pub fn update_and_fetch_old(
         &mut self,

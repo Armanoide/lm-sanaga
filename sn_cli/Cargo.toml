@@ -8,9 +8,10 @@ sn_core = { path = "../sn_core" }
 
 clap = { version = "4.5.41", features = ["derive"] }
 reqwest = { version = "0.12.22", features = ["json", "stream"] }
+futures-util = "0.3.31"
+inquire = "0.7.5"
 
 thiserror = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-futures-util = "0.3.31"

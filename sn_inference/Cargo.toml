@@ -14,7 +14,7 @@ glob="0.3.2"
 hex = "0.4.3"
 thiserror={workspace = true}
 itertools = "0.14.0"
-rayon = "1.10.0"
+rayon = { workspace = true }
 crossbeam = { workspace = true }
 dhat = "0.3.3"
 memmap2 = "0.9.7"

@@ -1,5 +1,4 @@
 use crate::error::{Error, ResultAPI};
-use crate::http_server::AppState;
 use crate::utils::parse_json_model_id::parse_json_model_id;
 use axum::Json;
 use axum::extract::State;
@@ -9,6 +8,7 @@ use sn_core::utils::rw_lock::RwLockExt;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::info;
+use crate::server::app_state::AppState;
 
 pub async fn get_model_list(State(state): State<Arc<AppState>>) -> ResultAPI {
     let models_installed: Vec<String> = {

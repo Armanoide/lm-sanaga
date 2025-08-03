@@ -1,0 +1,52 @@
+use rayon::prelude::*;
+use sea_orm::entity::prelude::*;
+use sea_orm::sqlx::types::chrono::NaiveDateTime;
+use serde::Serialize;
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize)]
+#[sea_orm(table_name = "message")]
+pub struct Model {
+    #[sea_orm(primary_key)]
+    pub id: i32,
+    pub role: String,
+    pub content: String,
+    pub generation_duration: Option<f64>,
+    pub prompt_tps: Option<f64>,
+    pub generation_tps: Option<f64>,
+    pub conversation_id: i32,
+    pub created_at: NaiveDateTime,
+}
+
+#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+pub enum Relation {
+    #[sea_orm(
+        belongs_to = "super::conversation::Entity",
+        from = "Column::ConversationId",
+        to = "super::conversation::Column::Id"
+    )]
+    Conversation,
+}
+
+impl Related<super::conversation::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Conversation.def()
+    }
+}
+
+impl ActiveModelBehavior for ActiveModel {}
+
+pub trait Convert {
+    fn into_conversation(self) -> sn_core::types::conversation::Conversation;
+}
+//get_messages_from_payload
+impl Convert for Vec<Model> {
+    fn into_conversation(self) -> sn_core::types::conversation::Conversation {
+        sn_core::types::conversation::Conversation {
+            messages: self.par_iter()
+                .map(|m| sn_core::types::message::Message {
+                    content: m.content.clone(),
+                    role: m.role.clone(),
+                    stats: None,
+                }).collect(),
+        }
+    }
+}

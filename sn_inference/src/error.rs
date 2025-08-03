@@ -14,10 +14,10 @@ pub enum Error {
     #[error("Unsupported model weight parameter: {0}")]
     UnsupportedWeight(String),
 
-    #[error("Failed to parse integer value")]
+    #[error("Failed to parse integer value: {0}")]
     ParseIntError(#[from] std::num::ParseIntError),
 
-    #[error("Failed to parse JSON")]
+    #[error("Failed to parse JSON: {0}")]
     JsonError(#[from] serde_json::Error),
 
     #[error("Root model could not be found in the path: {0}")]
@@ -47,7 +47,7 @@ pub enum Error {
     #[error("MLX runtime exception")]
     ExceptionMLX(#[from] mlx_rs::error::Exception),
 
-    #[error("I/O error")]
+    #[error("I/O error: {0}")]
     IOError(#[from] std::io::Error),
 
     #[error("Tensor size mismatch: read {0} bytes, expected {1} bytes")]
@@ -67,7 +67,7 @@ pub enum Error {
         #[from] tokenizers::processors::template::TemplateProcessingBuilderError,
     ),
 
-    #[error("MiniJinja template error")]
+    #[error("MiniJinja template error: {0}")]
     MiniJinjaError(#[from] minijinja::Error),
 
     #[error("Unable to process tokenizer encoding: {0}")]
@@ -91,7 +91,7 @@ pub enum Error {
     #[error("Failed to load MLX library function: {0}")]
     MlxFunctionLoadFailure(String),
 
-    #[error("UTF-8 decoding error")]
+    #[error("UTF-8 decoding error: {0}")]
     Utf8Error(#[from] std::str::Utf8Error),
 
     #[error("Tensor '{tensor}' requested bytes {start}..{end}, but file size is {file_size}")]

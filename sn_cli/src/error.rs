@@ -29,4 +29,7 @@ pub enum Error {
 
     #[error("I/O error: {0}")]
     IOError(#[from] std::io::Error),
+
+    #[error("Failed to create session: {0}")]
+    FailedCreateSession(String),
 }

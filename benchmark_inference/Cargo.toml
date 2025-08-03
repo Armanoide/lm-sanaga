@@ -1,0 +1,16 @@
+[package]
+name = "benchmark_inference"
+version = "0.1.0"
+edition = "2024"
+
+[profile.release]
+debug = true
+
+[dependencies]
+sn_inference = { path = "../sn_inference" }
+sn_core = { path = "../sn_core" }
+dhat = { version = "0.3.3" }
+
+
+[features]
+dhat-heap = []

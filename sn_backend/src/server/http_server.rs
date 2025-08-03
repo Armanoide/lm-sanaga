@@ -1,5 +1,3 @@
-pub(crate) use crate::app_state::AppState;
-//use axum::ServiceExt;
 use axum::http::StatusCode;
 use sn_inference::runner::Runner;
 use std::sync::{Arc, RwLock};
@@ -11,13 +9,8 @@ use tracing::{error, info, Level};
 use tracing::log::warn;
 use crate::db::connection::get_connection;
 use crate::error::{Error, Result};
-
-mod text;
-mod model;
-mod middleware;
-mod message;
-mod conversation;
-mod user;
+use crate::server::app_state::AppState;
+use crate::server::{model, session, text};
 
 async fn fallback() -> (StatusCode, &'static str) {
     (StatusCode::NOT_FOUND, "Not Found")
@@ -33,6 +26,7 @@ pub async fn http_server(runner: Arc<RwLock<Runner>>) -> Result<()> {
     let routes_api = axum::Router::new()
         .merge(model::route::routes())
         .merge(text::route::routes())
+        .merge(session::route::routes())
         .with_state(app_state.clone());
 
     let router = axum::Router::new()

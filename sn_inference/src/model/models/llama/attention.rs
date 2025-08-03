@@ -184,8 +184,6 @@ impl AttentionLlama {
             .build()?,
         );
 
-        let scaling_config = &llama_config.rope_scaling;
-
         let rope = initialize_rope(
             head_dim,
             llama_config.rope_theta,

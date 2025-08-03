@@ -1,13 +1,14 @@
+use std::collections::HashSet;
 use crate::chat_template::chat_template::render_chat_template;
 use crate::config::config::Config;
 use crate::error::{Error, Result};
 use crate::token::token_generated_info::TokenGeneratedInfo;
 use minijinja::Environment;
 use rayon::prelude::*;
-use sn_core::conversation::conversation::Conversation;
 use std::rc::Rc;
 use tokenizers::tokenizer::Tokenizer as HugTokenizer;
 use tracing::debug;
+use sn_core::types::conversation::Conversation;
 
 #[derive(Debug)]
 pub struct Tokenizer {
@@ -30,7 +31,7 @@ impl Tokenizer {
     pub fn apply_chat_template(
         &self,
         conversation: &Conversation,
-    ) -> Result<(Vec<String>, Option<Vec<(usize, usize)>>)> {
+    ) -> Result<(String, Option<Vec<(usize, usize)>>)> {
         let mut env = Environment::new();
         let chat_template = self.get_chat_template();
         let chat_template_name = "chat";
@@ -59,20 +60,41 @@ impl Tokenizer {
         }
     }
 
-    pub fn decode_response(&self, ids: &Vec<u32>) -> String {
-        self.tool.decode(ids, false).unwrap()
+    pub fn decode_response(&self, ids: &Vec<u32>, skip_special_tokens: bool) -> String {
+        self.tool.decode(ids, skip_special_tokens).unwrap()
     }
 
     pub fn decode_response_from_generated_token_info(
         &self,
         generated_token_info: &mut TokenGeneratedInfo,
+        has_header_start: bool,
+        has_header_end: bool,
     ) {
-        let token_ids = &generated_token_info.token;
-        let s = self.decode_response(token_ids);
-        generated_token_info.set_text(s);
+        let token_ids = &generated_token_info.original_token;
+
+        let s = self.decode_response(token_ids, true);
+        if !has_header_start || has_header_start && has_header_end {
+            generated_token_info.set_text(s);
+        }
     }
 
-    pub fn eot_ids(&self) -> Vec<u32> {
+    pub fn header_token_ids(&self) -> HashSet<u32> {
+        self.tool
+            .get_added_tokens_decoder()
+            .par_iter()
+            .filter_map(|(id, ad)| {
+                if ad.content.contains("<|start_header_id|>")
+                    || ad.content.contains("<|end_header_id|>")
+                {
+                    Some(*id)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    pub fn eot_ids(&self) -> HashSet<u32> {
         self.tool
             .get_added_tokens_decoder()
             .par_iter()

@@ -9,12 +9,15 @@ use crate::quantized::Quantize;
 use crate::token::token_stream_manager::{PromptStreamCallback, TokenStreamManager};
 use crate::tokenizer::tokenizer::Tokenizer;
 use serde::{Deserialize, Serialize};
-use sn_core::conversation::conversation::Conversation;
 use sn_core::utils::rw_lock::RwLockExt;
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 use walkdir::WalkDir;
+use sn_core::types::conversation::Conversation;
+use sn_core::types::message_stats::MessageStats;
+
+pub type GenerateTextResult = (String, Option<MessageStats>);
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ModelRuntime {
@@ -106,13 +109,16 @@ impl ModelRuntime {
         &self,
         conversation: &Conversation,
         callback: Option<PromptStreamCallback>,
-    ) -> Result<()> {
+    ) -> Result<GenerateTextResult> {
         if let (Some(tokenizer), Some(model)) = (&self.tokenizer, &self.model) {
             let (inputs, _) = tokenizer.apply_chat_template(conversation)?;
-            let prompt = tokenizer.encode_prompt(inputs)?;
+            let prompt = tokenizer.encode_prompt(vec!(inputs))?;
             let mut sr = TokenStreamManager::new(model.clone(), tokenizer.clone());
-            let _ = sr.generate_text(prompt, callback)?;
+            let generated_text = sr.generate_text(prompt, callback)?;
+            let stats = sr.get_average_stats()?;
+            Ok((generated_text, stats))
+        } else {
+            Ok((String::default(), None))
         }
-        Ok(())
     }
 }

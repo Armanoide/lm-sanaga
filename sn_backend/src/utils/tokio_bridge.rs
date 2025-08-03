@@ -18,8 +18,6 @@ impl<T: Send + 'static> TokenBridge<T> {
                     break;
                 }
             }
-            drop(tx); // Close the sender to signal end of stream
-            println!("Bridge thread done — stream should end now.");
         });
 
         let stream = UnboundedReceiverStream::new(rx);

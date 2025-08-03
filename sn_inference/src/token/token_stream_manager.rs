@@ -12,8 +12,10 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tracing::{debug, error};
+use sn_core::types::message_stats::{MessageStats, MessageStatsBuilder};
+use sn_core::types::stream_data::StreamData;
 
-pub type PromptStreamCallback = Sender<String>;
+pub type PromptStreamCallback = Sender<StreamData>;
 pub struct TokenStreamManager {
     tokenizer: Rc<Tokenizer>,
     pub token_generator: Option<Arc<RwLock<TokenGenerator>>>,
@@ -52,7 +54,7 @@ impl TokenStreamManager {
         self.token_generator = Some(tg_arc.clone());
 
         // Spawn thread that just calls generate
-        let handle = thread::spawn(move || {
+        let _ = thread::spawn(move || {
             if let Ok(mut tg) = tg_arc.write_lock("threaded_generate") {
                 debug!("Thread started to generate tokens.");
                 let _ = tg.generate(None);
@@ -60,17 +62,25 @@ impl TokenStreamManager {
                 error!("Failed to acquire write lock in thread.");
             }
         });
-        println!("Token generation thread spawned.");
         Ok(())
+    }
+
+    pub fn get_text(&self) -> String {
+        self.responses
+            .par_iter()
+            .map(|gti| gti.text.clone())
+            .collect::<Vec<String>>()
+            .join("")
     }
 
     pub fn generate_text(
         &mut self,
         prompt: Vec<u32>,
         callback: Option<PromptStreamCallback>,
-    ) -> Result<()> {
+    ) -> Result<(String)> {
         self.prelude_generate_text(prompt)?;
         let eot_ids = self.tokenizer.eot_ids();
+        let header_token_ids = self.tokenizer.header_token_ids();
         let mut stop = false;
 
         if let Some(_generator) = &mut self.token_generator {
@@ -80,20 +90,28 @@ impl TokenStreamManager {
                 .take()
                 .ok_or_else(|| Error::TokenGenerationStartFailure)?;
 
-            println!("Waiting for tokens...");
+            let mut has_header_start = false;
+            let mut has_header_end = false;
+
             for mut gti in rx.iter() {
                 // Timing inside the prompt prefill loop
                 let _step_start = Instant::now();
 
                 // Check if any token matches EOT
-                stop = gti.token.par_iter().any(|tok| eot_ids.contains(tok));
+                stop = eot_ids.contains(gti.get_token());
+
+                if !has_header_start && header_token_ids.contains(gti.get_token()) {
+                    has_header_start = true;
+                } else if !has_header_end && has_header_start && header_token_ids.contains(gti.get_token()) {
+                    has_header_end = true;
+                }
 
                 self.tokenizer
-                    .decode_response_from_generated_token_info(&mut gti);
+                    .decode_response_from_generated_token_info(&mut gti, has_header_start, has_header_end);
 
                 if let Some(cb) = &callback {
-                    // Call the callback with the decoded response
-                    let _ = cb.send(gti.text.clone());
+                    // Cal the callback with the decoded response
+                    let _ = cb.send(StreamData::stream_content(gti.text.clone()));
                 }
 
                 if let Err(e) = gti.end(None) {
@@ -109,9 +127,32 @@ impl TokenStreamManager {
         } else {
             return Err(Error::TokenGenerationStartFailure);
         }
+        Ok(self.get_text())
+    }
 
+    pub fn get_average_stats(&self) -> Result<Option<(MessageStats)>> {
+        if let Some(token_generator) = &self.token_generator {
+            let total_generated_tokens = {
+                let context = "reading total_generated_tokens from token_generator";
+                token_generator.read_lock(context)?.total_generated_tokens
+            };
+            let generation_duration = {
+                let context = "reading generation_duration from token_generator";
+                token_generator.read_lock(context)?.generation_duration
+            };
+            let prefill_duration = {
+                let context = "reading prefill_duration from token_generator";
+                token_generator.read_lock(context)?.prefill_duration
+            };
+            let stats = MessageStatsBuilder::new()
+                .with_total_generated_tokens(total_generated_tokens as f64)
+                .with_generation_duration(generation_duration)
+                .with_prefill_duration(prefill_duration)
+                .build();
 
-
-        Ok(())
+            Ok(Some(stats))
+        } else {
+            Ok(None)
+        }
     }
 }
