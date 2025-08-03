@@ -1,5 +1,6 @@
 use crate::error::{Error, ResultAPI};
-use crate::server::AppState;
+use crate::http_server::AppState;
+use crate::utils::parse_json_model_id::parse_json_model_id;
 use axum::Json;
 use axum::extract::State;
 use serde_json::Value;
@@ -7,7 +8,7 @@ use serde_json::json;
 use sn_core::utils::rw_lock::RwLockExt;
 use std::collections::HashMap;
 use std::sync::Arc;
-use crate::utils::parse_json_model_id::parse_json_model_id;
+use tracing::info;
 
 pub async fn get_model_list(State(state): State<Arc<AppState>>) -> ResultAPI {
     let models_installed: Vec<String> = {
@@ -63,8 +64,10 @@ pub async fn stop_model(
     json: Json<HashMap<String, Value>>,
 ) -> ResultAPI {
     let id = parse_json_model_id(&json)?;
-    let context = "stopping model";
-    println!("Stopping model with ID: {}", id);
-    state.runner.write_lock(context)?.unload_model(&id);
+    {
+        let context = "stopping model";
+        info!("Stopping model with ID: {}", id);
+        state.runner.write_lock(context)?.unload_model(&id);
+    }
     Ok(Json(json!({ "status": "stopped" })))
 }

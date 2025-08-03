@@ -1,23 +1,35 @@
 pub(crate) use crate::app_state::AppState;
-use crate::model;
-use crate::text;
-use axum::ServiceExt;
+//use axum::ServiceExt;
 use axum::http::StatusCode;
-use sn_core::error::Result;
 use sn_inference::runner::Runner;
 use std::sync::{Arc, RwLock};
+use axum::response::Response;
 use tower_http::trace::{
     DefaultMakeSpan, DefaultOnFailure, DefaultOnRequest, DefaultOnResponse, TraceLayer,
 };
-use tracing::Level;
+use tracing::{error, info, Level};
+use tracing::log::warn;
+use crate::db::connection::get_connection;
+use crate::error::{Error, Result};
+
+mod text;
+mod model;
+mod middleware;
+mod message;
+mod conversation;
+mod user;
 
 async fn fallback() -> (StatusCode, &'static str) {
     (StatusCode::NOT_FOUND, "Not Found")
 }
 #[tokio::main]
 pub async fn http_server(runner: Arc<RwLock<Runner>>) -> Result<()> {
-    let app_state = Arc::new(AppState::new(runner));
+    let db = get_connection().await.unwrap_or_else(|e| {
+        warn!("Failed to connect to the database: {}", e);
+        None
+    });
 
+    let app_state = Arc::new(AppState::new(runner, db));
     let routes_api = axum::Router::new()
         .merge(model::route::routes())
         .merge(text::route::routes())
@@ -35,7 +47,7 @@ pub async fn http_server(runner: Arc<RwLock<Runner>>) -> Result<()> {
         .fallback(fallback);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
-    println!("Starting HTTP server on {:?}", listener.local_addr()?);
+    info!("Starting HTTP server on {:?}", listener.local_addr()?);
     axum::serve(listener, router.into_make_service()).await?;
     Ok(())
 }

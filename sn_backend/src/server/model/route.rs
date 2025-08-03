@@ -1,5 +1,5 @@
 use crate::app_state::AppState;
-use crate::model::controller::{get_model_list, get_models_running, run_model, stop_model};
+use crate::http_server::model::controller::{get_model_list, get_models_running, run_model, stop_model};
 use axum::routing::{get, post};
 use std::sync::Arc;
 
