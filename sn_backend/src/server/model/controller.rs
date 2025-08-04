@@ -23,7 +23,7 @@ pub async fn get_models_running(State(state): State<Arc<AppState>>) -> ResultAPI
     let models = {
         let context = "reading models of the runner";
         let guard = &state.runner;
-        &guard.read_lock(context)?.models
+        &guard.read_lock(context)?.models.read_lock(context)?.clone()
     };
     let models = models
         .iter()

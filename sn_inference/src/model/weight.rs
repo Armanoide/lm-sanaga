@@ -140,7 +140,6 @@ fn read_safetensors_weights(
 fn load_weights(files: &Vec<String>) -> Result<Weight> {
     let mut list: Vec<Weight> = Vec::new();
     // Preallocate buffer once, reuse it for each file
-    let mut buffer_header = vec![0u8; HEADER_MAX_SAFETENSORS];
     let mut total_expected_tensors: usize = 0;
 
     for file_path in files {
