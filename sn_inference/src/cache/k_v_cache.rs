@@ -39,7 +39,7 @@ impl KVCache {
         }
        (Array::from_int(0), Array::from_int(0))
     }
-    
+
     #[allow(non_snake_case)]
     pub fn update_and_fetch_old(
         &mut self,

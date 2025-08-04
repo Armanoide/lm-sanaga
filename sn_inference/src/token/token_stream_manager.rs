@@ -84,7 +84,6 @@ impl TokenStreamManager {
         let mut stop = false;
 
         if let Some(_generator) = &mut self.token_generator {
-            // Take ownership of the receiver once, before the loop
             let rx = self
                 .token_receiver
                 .take()

@@ -23,19 +23,19 @@ impl MaybeQuantizedEmbedding for MaybeQuantized<Embedding> {
 
     fn update_weight(&mut self, x: &Array) {
         if let MaybeQuantized::Quantized(q) = self {
-            q.inner.weight.value = x.to_owned();
+            q.inner.weight.value = x.clone();
         }
     }
 
     fn update_scales(&mut self, x: &Array) {
         if let MaybeQuantized::Quantized(q) = self {
-            q.scales.value = x.to_owned();
+            q.scales.value = x.clone();
         }
     }
 
     fn update_biases(&mut self, x: &Array) {
         if let MaybeQuantized::Quantized(q) = self {
-            q.biases.value = x.to_owned();
+            q.biases.value = x.clone();
         }
     }
 }
@@ -44,21 +44,21 @@ impl MaybeQuantizedLinear for MaybeQuantized<Linear> {
     #[allow(clippy::duplicate)]
     fn update_weight(&mut self, x: &Array) {
         if let MaybeQuantized::Quantized(q) = self {
-            q.inner.weight.value = x.to_owned();
+            q.inner.weight.value = x.clone();
         }
     }
 
     #[allow(clippy::duplicate)]
     fn update_scales(&mut self, x: &Array) {
         if let MaybeQuantized::Quantized(q) = self {
-            q.scales.value = x.to_owned();
+            q.scales.value = x.clone();
         }
     }
 
     #[allow(clippy::duplicate)]
     fn update_biases(&mut self, x: &Array) {
         if let MaybeQuantized::Quantized(q) = self {
-            q.biases.value = x.to_owned();
+            q.biases.value = x.clone();
         }
     }
 }

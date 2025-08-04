@@ -99,8 +99,6 @@ impl ModelRuntime {
 
             let context = "reading to load weights";
             box_model.write_lock(context)?.load_weights(weight)?;
-            // free
-            self.weight = None;
         }
         Ok(())
     }

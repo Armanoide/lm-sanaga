@@ -11,6 +11,7 @@ use std::ffi::c_void;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
+use std::sync::Arc;
 use std::vec::Vec;
 use tracing::{debug, error};
 
@@ -41,7 +42,7 @@ pub struct Tensor {
     pub size: u64,
     pub dtype: Dtype,
     pub shape: Vec<i32>,
-    pub data: Array,
+    pub data: Arc<Array>,
 }
 #[derive(Debug)]
 pub struct Metadata {
@@ -125,7 +126,7 @@ fn read_safetensors_weights(
         weights.insert(
             name,
             Tensor {
-                data,
+                data: Arc::new(data),
                 shape,
                 dtype,
                 size: (offset_end - offset_start) as u64,

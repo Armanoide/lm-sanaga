@@ -12,12 +12,12 @@ use crossbeam::channel::Sender;
 use mlx_rs::Array;
 use mlx_rs::ops::concatenate;
 use mlx_rs::ops::indexing::{IndexOp, argmax_axis};
-use mlx_rs::transforms::{async_eval, async_eval_params, eval_params};
+use mlx_rs::transforms::{async_eval, async_eval_params, eval, eval_params};
 use mlx_rs::transforms::compile::clear_cache;
 use rayon::prelude::*;
 use std::sync::{Arc, RwLock};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 pub type SamplerFn = Arc<dyn Fn(&Array) -> Result<Array> + Send + Sync>;
 
@@ -32,7 +32,6 @@ pub struct TokenGeneratorOpts {
     repetition_penalty: Option<f32>,
     presence_penalty: Option<f32>,
     frequency_penalty: Option<f32>,
-    prefill_step_size: Option<usize>,
 }
 
 pub struct TokenGenerator {
@@ -40,7 +39,6 @@ pub struct TokenGenerator {
     pub cache: ArcCacheList,
     sampler: SamplerFn,
     logits_processors: Vec<LogitsProcessor>,
-    prefill_step_size: i32,
     max_tokens: usize,
     tokens: Option<Array>,
     prompt: Array,
@@ -75,7 +73,6 @@ impl TokenGenerator {
             cache,
             model: model.clone(),
             max_tokens,
-            prefill_step_size: 5, //250,
             logits_processors: Vec::new(),
             tokens: None,
             prompt_len,
@@ -96,11 +93,6 @@ impl TokenGenerator {
         input_prompt: &Array,
         input_embeddings: Option<&Array>,
     ) -> Result<Array> {
-        /*if let Some(emb) = input_embeddings {
-            model.forward_with_embeddings(prompt, emb, &prompt_cache)
-        } else {
-            model.forward(prompt, &prompt_cache)
-        }*/
         let context = "read model for forwarding";
         let result = self.model.write_lock(context)?.forward_model(
             &input_prompt,
@@ -125,7 +117,7 @@ impl TokenGenerator {
 
         let mut logits = self.model_call(
             &input_tokens_batched,
-            None, /*input_embeds_batched.as_ref()*/
+            input_embeds_batched.as_ref()
         )?;
         logits = logits.index((.., -1, ..));
 
@@ -179,7 +171,7 @@ impl TokenGenerator {
     pub fn generate(&mut self, input_embeddings: Option<&Array>) -> Result<()> {
         let total_prompt_tokens = self.prompt.shape()[0];
         let mut prompt_processed_tokens = 0;
-        let prefill_step_size = 64;
+        let prefill_step_size = 256 * 4;
         let mut prompt_input = self.prompt.clone();
         let pre_fill_start = Instant::now();
 
@@ -188,10 +180,9 @@ impl TokenGenerator {
             Err(e) => error!("Failed to set weird limit: {}", e),
         }
 
-        /*while total_prompt_tokens - prompt_processed_tokens > prefill_step_size {
-            println!("Before: prompt_input.size = {:?}", prompt_input.size());
+        while total_prompt_tokens - prompt_processed_tokens > prefill_step_size {
             let prompt_chunk = prompt_input
-                .index(0..self.prefill_step_size)
+                .index(0..prefill_step_size)
                 .expand_dims(0)?;
             let embed_slice = if let Some(emb) = input_embeddings {
                 Some(emb.index(0..prefill_step_size).expand_dims(0)?)
@@ -214,20 +205,19 @@ impl TokenGenerator {
             };
 
             states.iter().for_each(|s| {
-               if let Err(e) = async_eval([&s.0, &s.1]) {
+               if let Err(e) = eval([&s.0, &s.1]) {
                    error!("Failed to eval state cache during prompt process: {}", e);
                }
             });
 
             prompt_processed_tokens += prefill_step_size;
             prompt_input = prompt_input.index(prefill_step_size..);
-            println!("After: prompt_input.size = {:?}", prompt_input.size());
 
-            //if let Some(emb) = input_embeddings {
-            //    emb.index(prefill_step_size..emb.size() as i32);
-            //}
-            //clear_cache();
-        }*/
+            if let Some(emb) = input_embeddings {
+                emb.index(prefill_step_size..emb.size() as i32);
+            }
+            clear_cache();
+        }
 
         let (mut y, mut logprobs) = self.step(&prompt_input, input_embeddings)?;
         async_eval([&y, &logprobs])?;
@@ -246,7 +236,7 @@ impl TokenGenerator {
                     y.eval()?;
                 }
                 if n == self.max_tokens || self.stop {
-                    println!("Reached max tokens or stop condition at n={}", n);
+                    warn!("Reached max tokens or stop condition at n={}", n);
                     break;
                 }
 
@@ -261,12 +251,9 @@ impl TokenGenerator {
                 if self.eot_ids.contains(&z) {
                     break;
                 }
-                /*if z.par_iter().any(|tok| self.eot_ids.contains(tok)) {
-                    break;
-                }*/
-                //if n % 256 == 0 {
-                //    clear_cache();
-                //}
+                if n % 256 == 0 {
+                    clear_cache();
+                }
                 y = next_y;
                 logprobs = next_logprobs;
                 n += 1;
@@ -283,26 +270,3 @@ impl TokenGenerator {
 
 unsafe impl Send for TokenGenerator {}
 unsafe impl Sync for TokenGenerator {}
-/*while total_prompt_tokens - prompt_processed_tokens > prefill_step_size {
-            let prompt_chunk = prompt_input
-                .index(0..self.prefill_step_size)
-                .expand_dims(0)?;
-            let embed_slice = if let Some(emb) = input_embeddings {
-                Some(emb.index(0..prefill_step_size).expand_dims(0)?)
-            } else {
-                None
-            };
-
-            self.model_call(&prompt_chunk, embed_slice.as_ref())?;
-            //Todo: quantize_cache_fn(&mut prompt_cache);
-
-            // Assume cache state is some vector of arrays
-            //Todo: let _ = self.prompt_cache.state().iter().map(|s| s.eval()).collect::<Result<Vec<_>>>()?;
-
-            prompt_processed_tokens += prefill_step_size;
-            prompt_input = prompt_input.index(prefill_step_size..prompt_input.size() as i32);
-            if let Some(emb) = input_embeddings {
-                emb.index(prefill_step_size..emb.size() as i32);
-            }
-            clear_cache();
-        }*/
