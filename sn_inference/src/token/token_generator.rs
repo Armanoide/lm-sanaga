@@ -293,22 +293,3 @@ impl TokenGenerator {
 
 unsafe impl Send for TokenGenerator {}
 unsafe impl Sync for TokenGenerator {}
-
-/*
-
-|-----|
-|  A  | ------------>-------|
-|-----|                     |
-                            |
-|-----|                     |
-|  B  | ------------>  struct Mutex     ------> compute GPU
-|-----|                     |
-                            |
-|-----|                     |
-|  C  | ------------>-------|
-|-----|
-
-
-Mutex<
-
-*/
