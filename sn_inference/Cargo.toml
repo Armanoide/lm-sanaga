@@ -16,7 +16,6 @@ thiserror={workspace = true}
 itertools = "0.14.0"
 rayon = { workspace = true }
 crossbeam = { workspace = true }
-dhat = "0.3.3"
 memmap2 = "0.9.7"
 tracing = { workspace = true }
 tokenizers = "0.21.4-dev.0"

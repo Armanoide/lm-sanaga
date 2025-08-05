@@ -7,6 +7,8 @@ mod client;
 mod commands;
 mod error;
 mod prompt;
+mod utils;
+
 #[tokio::main]
 async fn main() {
     if let Err(err) = try_main().await {
