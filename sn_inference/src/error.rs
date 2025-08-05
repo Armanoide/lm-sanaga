@@ -102,9 +102,12 @@ pub enum Error {
         file_size: usize,
     },
 
-    #[error(" system time error :{0}")]
+    #[error("System time error :{0}")]
     SystemTimeError(#[from] std::time::SystemTimeError),
 
     #[error("Model runtime not found with id: {0}")]
     ModelRuntimeNotFoundWithId(String),
+
+    #[error("MLX compute lock error")]
+    MLXComputeLock
 }

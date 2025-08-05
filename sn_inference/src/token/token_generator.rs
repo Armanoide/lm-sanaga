@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 use crate::cache::k_v_cache::ArcCacheList;
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::factory::k_v_cache::create_prompt_cache;
 use crate::model::model::Model;
 use crate::model::model_kind::ModelKind;
@@ -18,11 +18,25 @@ use rayon::prelude::*;
 use std::sync::{Arc, RwLock};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use tracing::{error, info, warn};
+use once_cell::unsync::Lazy;
+use tokio::sync::Mutex;
 
 pub type SamplerFn = Arc<dyn Fn(&Array) -> Result<Array> + Send + Sync>;
 
 type LogitsProcessor = Arc<dyn Fn(&Array, &Array) -> Result<Array> + Send + Sync>;
 use sn_core::utils::rw_lock::RwLockExt;
+
+/// A global mutex to **serialize access to MLX GPU compute**.
+///
+/// MLX/Metal does **not support concurrent compute operations**
+/// (e.g., async_eval / eval), and doing so can cause
+/// segmentation faults or GPU command buffer assertion failures.
+///
+/// This lock ensures that **only one thread/task** runs
+/// compute operations like `async_eval` at a time.
+static MLX_COMPUTE_LOCK: once_cell::sync::Lazy<std::sync::Mutex<bool>> = once_cell::sync::Lazy::new(|| {
+    std::sync::Mutex::new(true)
+});
 
 pub struct TokenGeneratorOpts {
     temperature: Option<f32>,
@@ -52,6 +66,7 @@ pub struct TokenGenerator {
     pub prefill_duration: f64,
     pub generation_duration: f64,
 }
+
 
 impl TokenGenerator {
     pub fn new(
@@ -175,10 +190,10 @@ impl TokenGenerator {
         let mut prompt_input = self.prompt.clone();
         let pre_fill_start = Instant::now();
 
-        match self.weird_limit() {
+        /*match self.weird_limit() {
             Ok(_) => info!("Weird limit set successfully"),
             Err(e) => error!("Failed to set weird limit: {}", e),
-        }
+        }*/
 
         while total_prompt_tokens - prompt_processed_tokens > prefill_step_size {
             let prompt_chunk = prompt_input
@@ -220,7 +235,11 @@ impl TokenGenerator {
         }
 
         let (mut y, mut logprobs) = self.step(&prompt_input, input_embeddings)?;
-        async_eval([&y, &logprobs])?;
+        {
+            let _guard = MLX_COMPUTE_LOCK.lock()
+                .map_err(|e| Error::MLXComputeLock)?;
+            async_eval([&y, &logprobs])?;
+        }
         self.prefill_duration = pre_fill_start.elapsed().as_secs_f64();
         let mut generation_start = Instant::now();
         let mut n = 0;
@@ -231,7 +250,11 @@ impl TokenGenerator {
                     generation_start = Instant::now();
                 }
                 let (next_y, next_logprobs) = self.step(&y, None)?;
-                async_eval([&next_y, &next_logprobs])?;
+                {
+                    let _guard = MLX_COMPUTE_LOCK.lock()
+                        .map_err(|e| Error::MLXComputeLock)?;
+                    async_eval([&next_y, &next_logprobs])?;
+                }
                 if n == 0 {
                     y.eval()?;
                 }
@@ -270,3 +293,22 @@ impl TokenGenerator {
 
 unsafe impl Send for TokenGenerator {}
 unsafe impl Sync for TokenGenerator {}
+
+/*
+
+|-----|
+|  A  | ------------>-------|
+|-----|                     |
+                            |
+|-----|                     |
+|  B  | ------------>  struct Mutex     ------> compute GPU
+|-----|                     |
+                            |
+|-----|                     |
+|  C  | ------------>-------|
+|-----|
+
+
+Mutex<
+
+*/
