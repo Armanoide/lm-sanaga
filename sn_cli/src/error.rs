@@ -32,4 +32,7 @@ pub enum Error {
 
     #[error("Failed to create session: {0}")]
     FailedCreateSession(String),
+
+    #[error("transparent")]
+    InquireError(inquire::InquireError),
 }

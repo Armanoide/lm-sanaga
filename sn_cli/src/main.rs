@@ -22,7 +22,7 @@ async fn try_main() -> Result<()> {
     let cli_client = CliClient::new("http://localhost:3000");
 
     match cli.command {
-        Commands::Run { .. } => todo!(),
+        Commands::Run { .. } => commands::run::run::handler(&cli_client).await?,
         Commands::Model(model_commands) => match model_commands {
             ModelCommands::List { .. } => commands::model::list::handle(&cli_client).await?,
             ModelCommands::PS { .. } => commands::model::ps::handle(&cli_client).await?,
