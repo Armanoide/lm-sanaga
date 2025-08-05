@@ -3,25 +3,28 @@ use crate::error::Result;
 use std::io;
 use std::io::{BufRead, Write};
 use std::sync::Arc;
+use serde::Deserialize;
 use sn_core::server::payload::generate_text_request::GenerateTextRequest;
 use sn_core::types::stream_data::StreamData;
 use crate::prompt::session::prompt_session;
 use crate::utils::stream_response_bytes::{stream_response_bytes};
+use crate::utils::typewriter::typewriter;
 
-fn typewriter(text: &str, delay_ms: u64) {
-    let delay = std::time::Duration::from_millis(delay_ms);
-    for c in text.chars() {
-        print!("{c}");
-        std::io::Write::flush(&mut std::io::stdout()).unwrap();
-        std::thread::sleep(delay);
-    }
+#[derive(Debug, Deserialize, Default)]
+struct Metadata {
+    pub message_id: Option<i32>,
+    pub generation_tps: Option<f64>,
+    pub prompt_tps: Option<f64>,
+}
+#[derive(Debug, Default)]
+struct ResponseInfo {
+    pub has_error: bool,
+    pub metadata: Metadata,
 }
 
-fn handle_response_stream_data(stream_data: &StreamData, ) -> (bool, Option<i32>) {
-    let mut has_error = false;
-    let mut last_message_id = None;
+fn handle_response_stream_data(stream_data: &StreamData, response_info: &mut ResponseInfo) {
     if !stream_data.error.is_empty() {
-        has_error = true;
+        response_info.has_error = true;
         eprintln!("[ERROR]: {}", stream_data.error);
     }
 
@@ -30,21 +33,18 @@ fn handle_response_stream_data(stream_data: &StreamData, ) -> (bool, Option<i32>
     }
 
     if !stream_data.metadata.is_null() {
-        last_message_id = stream_data.metadata.as_object()
-            .and_then(| obj| obj.get("message_id"))
-            .and_then(| message_id | message_id.as_i64())
-            .and_then(| id | Some(id as i32));
+        if let Ok(metadata) = serde_json::from_value::<Metadata>(stream_data.metadata.clone()) {
+            response_info.metadata = metadata;
+        }
     }
-    (has_error, last_message_id)
 }
 
 pub async fn simple_prompt(cli_client: &CliClient, model_id: Arc<str>) -> Result<()> {
     println!("Model launched in container {}\n", model_id);
     let session_id = prompt_session(&cli_client).await?;
     println!("Starting simple prompt. Type 'exit' or 'quit' to exit.\n");
-    let mut has_error = false;
-    let mut last_message_id = None;
     let stdin = io::stdin();
+    let mut last_response_info = ResponseInfo::default();
 
     loop {
         print!("> ");
@@ -67,7 +67,7 @@ pub async fn simple_prompt(cli_client: &CliClient, model_id: Arc<str>) -> Result
             model_id: model_id.clone(),
             prompt,
             stream: true,
-            last_message_id,
+            last_message_id: last_response_info.metadata.message_id,
             session_id,
         }).await?;
 
@@ -83,13 +83,21 @@ pub async fn simple_prompt(cli_client: &CliClient, model_id: Arc<str>) -> Result
                         continue;
                     },
                 };
-                let result = handle_response_stream_data(&stream_data);
-                has_error = result.0;
-                last_message_id = result.1;
+                handle_response_stream_data(&stream_data, &mut last_response_info);
             }
         }
-        println!(); // Print a newline after the response
-        if has_error {
+        println!(
+            "\n====\nPrompt TPS: {:>8.2} tokens/sec\nGen    TPS: {:>8.2} tokens/sec",
+            last_response_info
+                .metadata
+                .prompt_tps
+                .unwrap_or(0.0),
+            last_response_info
+                .metadata
+                .generation_tps
+                .unwrap_or(0.0)
+        );
+        if last_response_info.has_error {
             break;
         }
     }

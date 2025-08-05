@@ -58,10 +58,6 @@ pub async fn generate_text(
         stats: None,
     });
 
-
-    //println!("===========> payload:{:?} <===========", payload);
-    //println!("===========> conversation:{:?} <===========", conversation);
-
     let (tx, rx): (Sender<StreamData>, Receiver<StreamData>) = bounded(100);
     let tx_2 = tx.clone();
 
@@ -94,10 +90,12 @@ pub async fn generate_text(
 
         match create_message(db, &payload, &generate_text_result).await {
             Ok(message) => {
-                //println!("===========> message:{:?} <===========", message);
                 if let Some(message) = message {
-                    //println!("[===========> message2:{:?} <===========]", message);
-                    let _ = tx_2.send(StreamData::stream_metadata(json!({"message_id": message.id})));
+                    let _ = tx_2.send(StreamData::stream_metadata(json!({
+                        "prompt_tps": message.prompt_tps,
+                        "generation_tps": message.generation_tps,
+                        "message_id": message.id
+                    })));
                 }
             }
             Err(err) => {
