@@ -2,6 +2,8 @@ use rayon::prelude::*;
 use sea_orm::entity::prelude::*;
 use sea_orm::sqlx::types::chrono::NaiveDateTime;
 use serde::Serialize;
+use sn_core::types::message::MessageRole;
+
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize)]
 #[sea_orm(table_name = "message")]
 pub struct Model {
@@ -37,14 +39,15 @@ impl ActiveModelBehavior for ActiveModel {}
 pub trait Convert {
     fn into_conversation(self) -> sn_core::types::conversation::Conversation;
 }
-//get_messages_from_payload
 impl Convert for Vec<Model> {
     fn into_conversation(self) -> sn_core::types::conversation::Conversation {
         sn_core::types::conversation::Conversation {
+            name: None,
+            id: None,
             messages: self.par_iter()
                 .map(|m| sn_core::types::message::Message {
                     content: m.content.clone(),
-                    role: m.role.clone(),
+                    role: MessageRole::try_from(m.role.as_str()).unwrap_or(MessageRole::User),
                     stats: None,
                 }).collect(),
         }

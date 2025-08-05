@@ -6,6 +6,16 @@ use crate::error::Result;
 use crate::db::entities::session as Session;
 use sea_orm::QueryFilter;
 use sea_orm::ColumnTrait;
+
+/// Creates a new session with the given name, or returns the existing one if it already exists.
+///
+/// # Arguments
+/// * `db` - A reference to the database connection.
+/// * `payload` - JSON payload containing the session name.
+///
+/// # Returns
+/// * `Ok(Model)` - The newly created or existing session model.
+/// * `Err` - If a database error occurs.
 pub async fn create_session(
     db: &DatabaseConnection,
     payload: Json<CreateSessionRequest>
@@ -26,6 +36,16 @@ pub async fn create_session(
     Ok(new_session.insert(db).await?)
 }
 
+/// Retrieves a session by its ID from the database.
+///
+/// # Arguments
+/// * `db` - A reference to the database connection.
+/// * `session_id` - The ID of the session to retrieve.
+///
+/// # Returns
+/// * `Ok(Some(Model))` - If the session exists.
+/// * `Ok(None)` - If no session with the given ID is found.
+/// * `Err` - If a database error occurs.
 pub async fn get_session(
     db: &DatabaseConnection,
     session_id: i32

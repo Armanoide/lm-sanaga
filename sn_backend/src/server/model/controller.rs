@@ -10,6 +10,14 @@ use std::sync::Arc;
 use tracing::info;
 use crate::server::app_state::AppState;
 
+/// Handler to retrieve the list of installed models.
+///
+/// # Arguments
+/// * `State(state)` - Shared application state containing the model runner.
+///
+/// # Returns
+/// * `Ok(Json)` - A JSON array of installed model names.
+/// * `Err` - If acquiring the lock or scanning models fails.
 pub async fn get_model_list(State(state): State<Arc<AppState>>) -> ResultAPI {
     let models_installed: Vec<String> = {
         let context = "reading models installed of the runner";
@@ -19,6 +27,14 @@ pub async fn get_model_list(State(state): State<Arc<AppState>>) -> ResultAPI {
     Ok(Json(models_installed.into()))
 }
 
+/// Handler to retrieve a list of currently running models.
+///
+/// # Arguments
+/// * `State(state)` - Shared application state (contains the model runner).
+///
+/// # Returns
+/// * `Ok(Json)` - A JSON array of running models, each with `name` and `id`.
+/// * `Err` - If a locking or access error occurs.
 pub async fn get_models_running(State(state): State<Arc<AppState>>) -> ResultAPI {
     let models = {
         let context = "reading models of the runner";
@@ -37,6 +53,15 @@ pub async fn get_models_running(State(state): State<Arc<AppState>>) -> ResultAPI
     Ok(Json(json!(models)))
 }
 
+/// Handler to load and run a model based on its name provided in the JSON payload.
+///
+/// # Arguments
+/// * `State(state)` - Shared application state (provides access to the model runner).
+/// * `json` - JSON payload expected to contain a non-empty `"name"` field.
+///
+/// # Returns
+/// * `Ok(Json)` - A JSON response containing the launched model's ID (`{ "id": "<model_id>" }`).
+/// * `Err` - If the `"name"` field is missing or empty, or if loading the model fails.
 pub async fn run_model(
     State(state): State<Arc<AppState>>,
     json: Json<HashMap<String, Value>>,
@@ -59,6 +84,15 @@ pub async fn run_model(
     }
 }
 
+/// Handler to stop/unload a running model by its ID.
+///
+/// # Arguments
+/// * `State(state)` - Shared application state (contains the model runner and other resources).
+/// * `json` - JSON payload containing the model ID (as a key-value map).
+///
+/// # Returns
+/// * `Ok(Json)` - A JSON response indicating success (`{ "status": "stopped" }`).
+/// * `Err` - If the model ID is missing or if locking/unloading fails.
 pub async fn stop_model(
     State(state): State<Arc<AppState>>,
     json: Json<HashMap<String, Value>>,

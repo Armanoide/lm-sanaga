@@ -1,4 +1,8 @@
+use std::env::VarError;
+use std::ops::Add;
+use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
+use minijinja::ErrorKind::BadSerialization;
 use crate::error::{Error, Result};
 use crate::model::model_runtime::{GenerateTextResult, ModelRuntime};
 use crate::token::token_stream_manager::PromptStreamCallback;
@@ -7,11 +11,34 @@ use tracing::{error, info};
 use sn_core::types::conversation::Conversation;
 use sn_core::utils::rw_lock::RwLockExt;
 
+const BASE_PATH_DEFAULT: &str = "~/.sanaga";
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Runner {
     pub models: Arc<RwLock<Vec<Arc<ModelRuntime>>>>,
 }
-const BASE_PATH: &str = "/Volumes/EXT1_SSD/Users/user1/Projects/ML/lm-sanaga/_MODEL";
+
+
+fn expand_tilde(path: &str) -> String {
+    if path.starts_with("~") {
+        if let Some(home) = std::env::var_os("HOME") {
+            return PathBuf::from(path.replacen("~", &home.to_string_lossy(), 1))
+            .display()
+                .to_string();
+        }
+    }
+    PathBuf::from(path).display().to_string()
+}
+
+fn get_base_path() -> String {
+    expand_tilde(std::env::var("PATH_SANAGA").unwrap_or_else(|_| {
+        info!("Using default base path: {}", BASE_PATH_DEFAULT);
+        String::from(BASE_PATH_DEFAULT)
+    }).as_str())
+}
+
+fn get_base_path_models() -> String {
+    get_base_path().add("/models/")
+}
 
 impl Runner {
     pub fn new() -> Self {
@@ -23,7 +50,7 @@ impl Runner {
         String::from(&id[(id.len() - 10)..])
     }
     pub fn load_model_name(&self, name: &str) -> Result<(String)> {
-        let path = format!("{BASE_PATH}/{name}");
+        let path = get_base_path_models().add(name);
         let id = Self::generate_path_id(&path);
 
         if let Some(model_runtime) = self.get_model_by_id(&id) {
@@ -102,7 +129,14 @@ impl Runner {
     }
 
     pub fn scan_model_installed(&self) -> Result<Vec<String>> {
-        let paths = std::fs::read_dir(BASE_PATH)?;
+        let path_models = get_base_path_models();
+        let paths = match std::fs::read_dir(&path_models) {
+            Ok(paths) => paths,
+            Err(e) => {
+                error!("Failed to read directory: {}", path_models);
+                return Err(Error::IOError(e));
+            }
+        };
         let list = paths
             .map(|res| res.map(|dir| dir.path()))
             .map(|path| path.ok())

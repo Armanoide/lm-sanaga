@@ -1,3 +1,3 @@
 pub(crate) mod session;
 pub(crate) mod message;
-mod conversation;
+pub(crate) mod conversation;

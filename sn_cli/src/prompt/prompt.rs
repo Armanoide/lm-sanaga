@@ -1,18 +1,18 @@
 use crate::client::CliClient;
 use crate::error::Result;
-use std::io;
-use std::io::{BufRead, Write};
 use std::sync::Arc;
+use inquire::{InquireError, Text};
 use serde::Deserialize;
 use sn_core::server::payload::generate_text_request::GenerateTextRequest;
 use sn_core::types::stream_data::StreamData;
+use crate::prompt::conversation::prompt_conversation;
 use crate::prompt::session::prompt_session;
 use crate::utils::stream_response_bytes::{stream_response_bytes};
 use crate::utils::typewriter::typewriter;
 
 #[derive(Debug, Deserialize, Default)]
 struct Metadata {
-    pub message_id: Option<i32>,
+    pub conversation_id: Option<i32>,
     pub generation_tps: Option<f64>,
     pub prompt_tps: Option<f64>,
 }
@@ -21,6 +21,8 @@ struct ResponseInfo {
     pub has_error: bool,
     pub metadata: Metadata,
 }
+
+const INFO_QUIT_PROMPT: &str = "Type 'exit' or 'quit' to exit the prompt.";
 
 fn handle_response_stream_data(stream_data: &StreamData, response_info: &mut ResponseInfo) {
     if !stream_data.error.is_empty() {
@@ -39,23 +41,46 @@ fn handle_response_stream_data(stream_data: &StreamData, response_info: &mut Res
     }
 }
 
+/// Interactively prompts the user for input, sends it to a model for text generation,
+/// and displays streamed responses in real-time.
+///
+/// This function:
+/// - Prompts the user to select or create a session and conversation.
+/// - Continuously asks for user input until "exit" or "quit" is typed.
+/// - Sends each prompt to the specified model using the `CliClient`.
+/// - Streams and prints the response as it arrives.
+/// - Handles prompt and generation performance (TPS) statistics.
+///
+/// # Arguments
+/// * `cli_client` - A reference to the CLI client used for communication.
+/// * `model_id` - The ID of the model to use, wrapped in an `Arc<str>`.
+///
+/// # Returns
+/// * `Result<()>` - Returns `Ok(())` on success or an error if something fails.
 pub async fn simple_prompt(cli_client: &CliClient, model_id: Arc<str>) -> Result<()> {
-    println!("Model launched in container {}\n", model_id);
     let session_id = prompt_session(&cli_client).await?;
-    println!("Starting simple prompt. Type 'exit' or 'quit' to exit.\n");
-    let stdin = io::stdin();
+    let conversation_id = prompt_conversation(&cli_client, session_id.as_ref()).await?;
     let mut last_response_info = ResponseInfo::default();
+    last_response_info.metadata.conversation_id = conversation_id;
+    println!("Model launched in container {}", model_id);
+    println!("{}\n", INFO_QUIT_PROMPT);
 
     loop {
-        print!("> ");
-        // Flush stdout to ensure the prompt is visible
-        io::stdout().flush()?;
-
-        let mut input = String::new();
-        if stdin.read_line(&mut input).is_err() {
-            println!("Failed to read input. Try again.");
-            continue;
-        }
+        let name = Text::new("").prompt();
+        let input = match name {
+            Ok(name) => name,
+            Err(InquireError::OperationCanceled) => {
+                continue;
+            },
+            Err(InquireError::OperationInterrupted) => {
+                println!("{}", INFO_QUIT_PROMPT); // User pressed Ctrl+C
+                continue;
+            }
+            Err(e) => {
+                println!("Failed to read input. Try again.");
+                continue;
+            }
+        };
 
         let prompt = input.trim().to_string();
         if input.eq_ignore_ascii_case("exit") || input.eq_ignore_ascii_case("quit") {
@@ -66,8 +91,8 @@ pub async fn simple_prompt(cli_client: &CliClient, model_id: Arc<str>) -> Result
         let response = cli_client.send_prompt(&GenerateTextRequest {
             model_id: model_id.clone(),
             prompt,
-            stream: true,
-            last_message_id: last_response_info.metadata.message_id,
+            stream: Some(true),
+            conversation_id: last_response_info.metadata.conversation_id,
             session_id,
         }).await?;
 
@@ -97,6 +122,8 @@ pub async fn simple_prompt(cli_client: &CliClient, model_id: Arc<str>) -> Result
                 .generation_tps
                 .unwrap_or(0.0)
         );
+
+        // Stop the loop if an error occurred during stream processing
         if last_response_info.has_error {
             break;
         }

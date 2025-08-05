@@ -21,4 +21,7 @@ pub enum Error {
 
     #[error("Cache lock poisoned: {0}")]
     CacheLockPoisoned(String),
+    
+    #[error("Unknown role: {0}")]
+    UnknownMessageRole(String),
 }

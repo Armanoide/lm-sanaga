@@ -1,4 +1,4 @@
-use axum::extract::rejection::JsonRejection;
+use axum::extract::rejection::{JsonRejection, QueryRejection};
 use axum::Json;
 use axum::response::{IntoResponse, Response};
 use serde_json;
@@ -40,8 +40,11 @@ pub enum Error {
     #[error("transparent")]
     IO(#[from] std::io::Error),
 
-    #[error("json rejection: {0}")]
+    #[error("url rejected with: {0}")]
     JsonRejection(#[from] JsonRejection),
+
+    #[error("url rejected with: {0}")]
+    QueryRejection(#[from] QueryRejection),
 
     #[error("transparent")]
     ErrorAxum(axum::Error),
@@ -51,6 +54,9 @@ pub enum Error {
 
     #[error("Conversation not found")]
     ConversationNotFound,
+
+    #[error("Failed to generate text: {0}")]
+    FailedToGenerateText(Value),
 }
 
 impl IntoResponse for Error {
@@ -66,16 +72,20 @@ impl IntoResponse for Error {
             Error::ModelNameRequired => axum::http::StatusCode::BAD_REQUEST,
             Error::InvalidRequest(_) => axum::http::StatusCode::BAD_REQUEST,
             Error::JsonRejection(_) => axum::http::StatusCode::BAD_REQUEST,
+            Error::QueryRejection(_) => axum::http::StatusCode::BAD_REQUEST,
             Error::ModelIdRequired => axum::http::StatusCode::BAD_REQUEST,
             Error::IO(_) => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-            Error::NoDbAvailable => http::StatusCode::INTERNAL_SERVER_ERROR
+            Error::NoDbAvailable => http::StatusCode::INTERNAL_SERVER_ERROR,
+            Error::FailedToGenerateText(value) => http::StatusCode::INTERNAL_SERVER_ERROR,
         };
+
         let body = Json(json!({
             "error": match status {
                 axum::http::StatusCode::BAD_REQUEST => self.to_string(),
                 _ => "An unexpected error occurred".to_string(),
             }
         }));
+
         error!("Error occurred: {}", self);
         (status, body).into_response()
     }

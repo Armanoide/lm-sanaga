@@ -3,7 +3,8 @@
 static ALLOC: dhat::Alloc = dhat::Alloc;
 
 use sn_core::types::conversation::Conversation;
-use sn_core::types::message::Message;
+use sn_core::types::message;
+use sn_core::types::message::{Message, MessageRole};
 use sn_inference::runner::Runner;
 fn main() {
     #[cfg(feature = "dhat-heap")]
@@ -13,7 +14,7 @@ fn main() {
     let conversation = Conversation::from_message(Message {
         //content: String::from("Hi, my name is <name>."),
         content: String::from("i have a dream, that one day this..."),
-        role: String::from("user"),
+        role: MessageRole::User,
         stats: None,
     });
 

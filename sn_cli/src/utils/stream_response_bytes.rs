@@ -1,6 +1,22 @@
 use bytes::Bytes;
-use futures_util::{stream, Stream, StreamExt};
+use futures_util::{Stream, StreamExt};
 
+/// Converts a stream of `Bytes` into a stream of string lines using an `mpsc` channel.
+///
+/// This function is typically used to handle streaming responses (e.g., from an HTTP request),
+/// where each chunk of data might not represent a full line. It accumulates partial chunks
+/// into a buffer until it finds a newline (`\n`), then sends each full line through an async channel.
+///
+/// # Arguments
+/// * `stream` - A `Stream` of `Result<Bytes, reqwest::Error>`, typically from an HTTP response.
+///
+/// # Returns
+/// * `Receiver<String>` - An async receiver that yields complete string lines from the stream.
+///
+/// # Behavior
+/// - Spawns a background task to process the incoming byte chunks.
+/// - Gracefully skips malformed UTF-8 or errored chunks.
+/// - Uses newline (`\n`) to separate lines, supports partial buffering.
 pub async fn stream_response_bytes(
     stream: impl Stream<Item = Result<Bytes, reqwest::Error>> + Send + 'static,
 ) -> tokio::sync::mpsc::Receiver<String> {
@@ -37,7 +53,10 @@ pub async fn stream_response_bytes(
     rx
 }
 
+#[cfg(test)]
+use futures_util::{stream};
 #[tokio::test]
+
 async fn test_stream_response_bytes() {
     let data_chunks = vec![
         Ok(Bytes::from("{\"key\": \"value\"}\n")),

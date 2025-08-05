@@ -46,6 +46,12 @@ impl CliClient {
         Ok(self.handle_response(result).await?)
     }
 
+    pub async fn list_conversation(&self, session_id: &i32) -> Result<String> {
+        let url = format!("{}/api/v1/sessions/{}/conversations", self.base_url, session_id);
+        let result = self.client.get(&url).send().await;
+        Ok(self.handle_response(result).await?)
+    }
+
     pub async fn ps_model(&self) -> Result<String> {
         let url = format!("{}/api/v1/models/ps", self.base_url);
         let result = self.client.get(&url).send().await;

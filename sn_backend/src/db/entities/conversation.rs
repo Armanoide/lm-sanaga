@@ -1,6 +1,8 @@
+use rayon::iter::IntoParallelRefIterator;
 use sea_orm::entity::prelude::*;
+use sea_orm::sqlx::types::chrono::NaiveDateTime;
 use serde::Serialize;
-
+use rayon::iter::*;
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize)]
 #[sea_orm(table_name = "conversation")]
 pub struct Model {
@@ -8,6 +10,7 @@ pub struct Model {
     pub id: i32,
     pub name: Option<String>,
     pub session_id: i32,
+    pub created_at: NaiveDateTime,
 }
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
@@ -30,3 +33,17 @@ impl Related<super::session::Entity> for Entity {
 }
 
 impl ActiveModelBehavior for ActiveModel {}
+
+pub trait Convert {
+    fn into_conversations(self) -> Vec<sn_core::types::conversation::Conversation>;
+}
+
+impl Convert for Vec<crate::db::entities::conversation::Model> {
+    fn into_conversations(self) -> Vec<sn_core::types::conversation::Conversation>{
+        self.par_iter().map(|c| sn_core::types::conversation::Conversation {
+            name: c.name.clone(),
+            id: Some(c.id),
+            messages: vec![],
+        }).collect()
+    }
+}
