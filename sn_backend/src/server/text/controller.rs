@@ -120,11 +120,11 @@ async fn store_generate_text_result(
 
     match create_message(db, &payload, &generate_text_result).await {
         Ok(message) => {
-            if let (Some(message), Some(tx_2)) = (&message, tx) {
+            if let (Some(message), Some(tx)) = (&message, tx) {
                 if payload.conversation_id.is_none() {
                     generate_title_conversation(state, payload, &message.conversation_id).await;
                 }
-                let _ = tx_2.send(StreamData::for_text_generated_metadata_sse_response(TextGeneratedMetadataResponseSSE {
+                let _ = tx.send(StreamData::for_text_generated_metadata_sse_response(TextGeneratedMetadataResponseSSE {
                     prompt_tps: message.prompt_tps,
                     generation_tps: message.generation_tps,
                     conversation_id: message.conversation_id,

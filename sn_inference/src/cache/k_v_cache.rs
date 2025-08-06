@@ -3,6 +3,10 @@ use mlx_rs::error::Exception;
 use mlx_rs::ops::indexing::{IndexMutOp, IndexOp};
 use mlx_rs::ops::{concatenate_axis, zeros_dtype};
 use std::sync::{Arc, RwLock};
+use mlx_rs::transforms::{async_eval, eval};
+use tracing::error;
+use crate::error::Error;
+use crate::utils::mlx::mlx_compute_lock::MLX_COMPUTE_LOCK;
 
 pub type ArcCacheItem = Arc<RwLock<KVCache>>;
 pub type ArcCacheList = Arc<RwLock<Vec<ArcCacheItem>>>;
@@ -24,6 +28,17 @@ impl KVCache {
             step: 256,
             max_size: None,
         }
+    }
+
+    pub fn eval_state(&self) {
+        let state = self.get_state();
+
+        std::thread::spawn(move || {
+            let _guard = MLX_COMPUTE_LOCK.lock();
+            if let Err(e) = eval([&state.0, &state.1]) {
+                error!("Failed to eval state cache during prompt process: {}", e);
+            }
+        });
     }
 
 
@@ -168,6 +183,9 @@ impl KVCache {
         Ok((keys_out, values_out))
     }
 }
+
+unsafe impl Send for KVCache {}
+unsafe impl Sync for KVCache {}
 
 #[test]
 fn test_kv_cache_update_and_fetch() {

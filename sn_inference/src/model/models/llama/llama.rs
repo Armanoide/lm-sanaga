@@ -77,7 +77,6 @@ impl Module for ModelLLama {
             _ => {
                 if name.starts_with("model.layers.") {
                     let parts: Vec<&str> = name.split(".").collect();
-                    // ex: model.layers.2.self_attn.o_proj.biases
                     if parts.len() >= 5 {
                         let idx = parts[2].parse::<usize>()?;
                         if idx < self.layers.len() {

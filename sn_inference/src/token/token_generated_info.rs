@@ -26,7 +26,6 @@ impl TokenGeneratedInfo {
 
     pub fn set_text(&mut self, text: String) {
         self.text = text;
-        print!("{}", self.text);
     }
 
     pub fn end(&mut self, with_reason: Option<String>) -> Result<()> {
