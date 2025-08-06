@@ -8,6 +8,7 @@ edition = "2024"
 [dependencies]
 sn_inference = { path = "../sn_inference" }
 sn_core = { path = "../sn_core" }
+sn_migration = { path = "../sn_backend/src/db/migration" }
 
 axum = { version = "0.8.4", features = ["macros"] }
 tower-http = {version = "0.6.6", features = ["trace"] }

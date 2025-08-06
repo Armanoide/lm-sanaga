@@ -57,6 +57,12 @@ pub enum Error {
 
     #[error("Failed to generate text: {0}")]
     FailedToGenerateText(Value),
+
+    #[error("Invalid database URL: {0}")]
+    InvalidDatabaseURL(String),
+
+    #[error("Failed to build SSE response: {0}")]
+    FailedBuildSSEResponse(String),
 }
 
 impl IntoResponse for Error {
@@ -66,8 +72,10 @@ impl IntoResponse for Error {
             Error::ErrorAxum(_) => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
             Error::Inference(_) => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
             Error::DbError(_) => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            Error::InvalidDatabaseURL(_) => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
             Error::DotEnv(_) => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
             Error::EnvError(_) => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            Error::FailedBuildSSEResponse(_) => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
             Error::ConversationNotFound => axum::http::StatusCode::BAD_REQUEST,
             Error::ModelNameRequired => axum::http::StatusCode::BAD_REQUEST,
             Error::InvalidRequest(_) => axum::http::StatusCode::BAD_REQUEST,

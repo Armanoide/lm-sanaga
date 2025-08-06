@@ -49,7 +49,7 @@ impl Runner {
         let id = hex::encode(salt.as_bytes());
         String::from(&id[(id.len() - 10)..])
     }
-    pub fn load_model_name(&self, name: &str) -> Result<(String)> {
+    pub fn load_model_name(&self, name: &str, callback: Option<PromptStreamCallback>) -> Result<(String)> {
         let path = get_base_path_models().add(name);
         let id = Self::generate_path_id(&path);
 
@@ -61,7 +61,7 @@ impl Runner {
             return Ok(id);
         }
 
-        let mut model_runtime = ModelRuntime::load_with_path(path.as_str(), &id)?;
+        let mut model_runtime = ModelRuntime::load_with_path(path.as_str(), &id, callback)?;
         let _ = &model_runtime.routine_model()?;
         info!(
             "Model {} loaded in container {}",

@@ -1,4 +1,4 @@
-use crate::error::{Error, ResultAPI};
+use crate::error::{Error, ResultAPI, ResultAPIStream};
 use crate::utils::parse_json_model_id::parse_json_model_id;
 use axum::Json;
 use axum::extract::State;
@@ -7,9 +7,26 @@ use serde_json::json;
 use sn_core::utils::rw_lock::RwLockExt;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tracing::info;
+use axum::body::Body;
+use axum::extract::rejection::JsonRejection;
+use axum::response::{IntoResponse, Response};
+use crossbeam::channel::{bounded, Receiver, Sender};
+use tracing::{error, info};
+use sn_core::server::payload::run_model_request::RunModelRequest;
+use sn_core::types::stream_data::StreamData;
 use crate::server::app_state::AppState;
+use crate::utils::tokio_bridge::TokenBridge;
+use futures::StreamExt;
+use sn_core::server::payload::run_model_metadata_response_sse::RunModelMetadataResponseSSE;
+use crate::utils::sse_response_builder::SseResponseBuilder;
 
+fn handle_error_run_model(err: &String, tx_err: Option<Arc<Sender<StreamData>>>) {
+    error!("{}", err);
+    let error = format!("Failed to run model: {}", err);
+    if let Some(tx_err) = tx_err {
+        let _ = tx_err.send(StreamData::for_stream_error(error).into());
+    }
+}
 /// Handler to retrieve the list of installed models.
 ///
 /// # Arguments
@@ -53,34 +70,74 @@ pub async fn get_models_running(State(state): State<Arc<AppState>>) -> ResultAPI
     Ok(Json(json!(models)))
 }
 
-/// Handler to load and run a model based on its name provided in the JSON payload.
+pub async fn run_model_with_sse(state: Arc<AppState>, payload: Json<RunModelRequest>) -> ResultAPIStream {
+    let (tx, rx): (Sender<StreamData>, Receiver<StreamData>) = bounded(100);
+    let tx = Arc::new(tx);
+
+    let response = SseResponseBuilder::new(rx).build();
+    tokio::spawn(async move {
+        let model_id = (|| {
+            let guard = state.runner.write_lock("launching model")?;
+            let model_id = guard.load_model_name(&payload.model_name, Some(tx.clone()))?;
+            Ok::<_, Error>(model_id)
+        })();
+        match model_id {
+            Ok(model_id) => {
+                let _ = tx.send(StreamData::for_metadata_text_generated_sse_response(RunModelMetadataResponseSSE {
+                    model_id: Arc::from(model_id.as_str()),
+                }));
+            }
+            Err(e) => {
+                handle_error_run_model(&e.to_string(), Some(tx));
+            }
+        }
+    });
+    Ok(response?)
+
+}
+
+pub async fn run_model_with_json(state: Arc<AppState>, payload: Json<RunModelRequest>) -> ResultAPIStream {
+    let model_id = {
+        let context = "launching model";
+        state.runner.write_lock(context)?.load_model_name(&payload.model_name, None)?
+    };
+
+    Ok(Json(json!({
+            "id": model_id,
+        })).into_response())
+}
+
+/// Handles the `/run_model` endpoint, allowing clients to run a model either with
+/// standard JSON response or using Server-Sent Events (SSE) for streaming.
 ///
-/// # Arguments
-/// * `State(state)` - Shared application state (provides access to the model runner).
-/// * `json` - JSON payload expected to contain a non-empty `"name"` field.
+/// # Parameters
+/// - `state`: Shared application state wrapped in `Arc`, providing access to the model runner.
+/// - `payload`: JSON request payload parsed into `RunModelRequest`. If the payload is invalid,
+///   a `ModelNameRequired` error is returned.
+///
+/// # Behavior
+/// - If `stream` is `true` in the payload, the model will be run using SSE and a streaming
+///   response will be returned.
+/// - If `stream` is `false` or not provided, the function returns a standard JSON response
+///   containing the model ID.
 ///
 /// # Returns
-/// * `Ok(Json)` - A JSON response containing the launched model's ID (`{ "id": "<model_id>" }`).
-/// * `Err` - If the `"name"` field is missing or empty, or if loading the model fails.
+/// - `ResultAPIStream`: Either a streaming SSE response or a JSON response with the model ID.
+///   Errors are handled and returned using the `Error` type.
+///
+/// # Errors
+/// - Returns `ModelNameRequired` if the request payload is missing or invalid.
+/// - Returns appropriate inference or internal errors if model loading fails.
 pub async fn run_model(
     State(state): State<Arc<AppState>>,
-    json: Json<HashMap<String, Value>>,
-) -> ResultAPI {
-    if let Some(name) = json
-        .get("name")
-        .and_then(|name| name.as_str())
-        .and_then(|name| if name.is_empty() { None } else { Some(name) })
-    {
-        let model_id = {
-            let context = "launching model";
-            state.runner.write_lock(context)?.load_model_name(&name)?
-        };
+    payload: std::result::Result<Json<RunModelRequest>, JsonRejection>,
+) -> ResultAPIStream {
+    let payload = payload.map_err(|e|Error::ModelNameRequired)?;
 
-        Ok(Json(json!({
-            "id": model_id,
-        })))
+    if payload.stream.unwrap_or(false) {
+        Ok(run_model_with_sse(state, payload).await?)
     } else {
-        Err(Error::ModelNameRequired)
+        Ok(run_model_with_json(state, payload).await?)
     }
 }
 

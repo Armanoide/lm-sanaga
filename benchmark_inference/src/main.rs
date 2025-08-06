@@ -19,7 +19,7 @@ fn main() {
     });
 
     match (|| {
-        let model_id = runner.load_model_name("models-llama-3.1-8B-Instruct-4bit")?;
+        let model_id = runner.load_model_name("models-llama-3.1-8B-Instruct-4bit", None)?;
         runner.generate_text(&model_id, &conversation, None)?;
         Ok::<(), Box<dyn std::error::Error>>(())
     })() {

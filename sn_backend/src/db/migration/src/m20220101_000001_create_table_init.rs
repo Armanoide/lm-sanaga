@@ -91,16 +91,7 @@ impl MigrationTrait for Migration {
         Ok(())
     }
 
-    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        manager
-            .drop_table(Table::drop().table(Message::Table).to_owned())
-            .await?;
-        manager
-            .drop_table(Table::drop().table(Conversation::Table).to_owned())
-            .await?;
-        manager
-            .drop_table(Table::drop().table(Session::Table).to_owned())
-            .await?;
+    async fn down(&self, _: &SchemaManager) -> Result<(), DbErr> {
         Ok(())
     }
 }

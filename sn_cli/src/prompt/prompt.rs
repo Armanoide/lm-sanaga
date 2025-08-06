@@ -4,7 +4,7 @@ use std::sync::Arc;
 use inquire::{InquireError, Text};
 use serde::Deserialize;
 use sn_core::server::payload::generate_text_request::GenerateTextRequest;
-use sn_core::types::stream_data::StreamData;
+use sn_core::types::stream_data::{StreamData, StreamDataContent};
 use crate::prompt::conversation::prompt_conversation;
 use crate::prompt::session::prompt_session;
 use crate::utils::stream_response_bytes::{stream_response_bytes};
@@ -30,14 +30,16 @@ fn handle_response_stream_data(stream_data: &StreamData, response_info: &mut Res
         eprintln!("[ERROR]: {}", stream_data.error);
     }
 
-    if !stream_data.content.is_empty() {
-        typewriter(&stream_data.content, 5);
-    }
-
-    if !stream_data.metadata.is_null() {
-        if let Ok(metadata) = serde_json::from_value::<Metadata>(stream_data.metadata.clone()) {
-            response_info.metadata = metadata;
-        }
+    match &stream_data.content {
+        StreamDataContent::String(content) => {
+            typewriter(&content, 5);
+        },
+        StreamDataContent::TextGeneratedMetadataResponseSSE(content) => {
+            response_info.metadata.conversation_id = Some(content.conversation_id);
+            response_info.metadata.generation_tps = content.generation_tps;
+            response_info.metadata.prompt_tps = content.prompt_tps;
+        },
+        _ => {}
     }
 }
 

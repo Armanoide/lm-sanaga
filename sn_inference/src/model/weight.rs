@@ -13,7 +13,11 @@ use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 use std::sync::Arc;
 use std::vec::Vec;
+use serde_json::json;
 use tracing::{debug, error};
+use sn_core::server::payload::run_model_response_sse::RunModelResponseSSE;
+use sn_core::types::stream_data::StreamData;
+use crate::token::token_stream_manager::PromptStreamCallback;
 
 static HEADER_MAX_SAFETENSORS: usize = 100_000_000;
 static HEADER_OFFSET_SAFETENSORS: usize = 8;
@@ -55,9 +59,9 @@ pub struct Weight {
 }
 
 impl Weight {
-    pub fn new(config: &Config) -> Result<Self> {
+    pub fn new(config: &Config, callback: Option<PromptStreamCallback>) -> Result<Self> {
         let weights_files = find_model_files(&config.root_path)?;
-        load_weights(&weights_files)
+        load_weights(&weights_files, callback)
     }
 }
 
@@ -86,19 +90,30 @@ fn read_safetensors_header(
 
 fn read_safetensors_weights(
     mmap: &memmap2::Mmap,
-    weights_json: WeightJSON,
+    mut weights_json: WeightJSON,
     offset_header: usize,
+    callback: Option<PromptStreamCallback>
 ) -> Result<HashMap<String, Tensor>> {
     let mut weights: HashMap<String, Tensor> = HashMap::new();
 
     let base_offset = offset_header + HEADER_OFFSET_SAFETENSORS;
 
-    for (name, weight) in weights_json.tensors {
+    for (idx, (name, weight)) in weights_json.tensors.iter().enumerate() {
         let dtype = Dtype::from_string_unsafe(&weight.dtype);
         let shape = weight.shape.clone();
         let data_offsets = weight.data_offsets;
         let offset_start = base_offset + data_offsets[0] as usize;
         let offset_end = base_offset + data_offsets[1] as usize;
+        let callback = callback.clone();
+
+        if let Some(cb) = callback {
+            let _ = cb.send(StreamData::for_run_model_sse_response((RunModelResponseSSE {
+                load_type: "loading_tensor".to_string(),
+                tensor_name: String::from(name),
+                tensor_index: idx + 1,
+                total_tensors: weights_json.tensors.len(),
+            })));
+        }
 
         if offset_end > mmap.len() {
             return Err(Error::SafetensorsOutOfBounds {
@@ -124,7 +139,7 @@ fn read_safetensors_weights(
         };
 
         weights.insert(
-            name,
+            String::from(name),
             Tensor {
                 data: Arc::new(data),
                 shape,
@@ -137,7 +152,7 @@ fn read_safetensors_weights(
     Ok(weights)
 }
 
-fn load_weights(files: &Vec<String>) -> Result<Weight> {
+fn load_weights(files: &Vec<String>, callback: Option<PromptStreamCallback>) -> Result<Weight> {
     let mut list: Vec<Weight> = Vec::new();
     // Preallocate buffer once, reuse it for each file
     let mut total_expected_tensors: usize = 0;
@@ -157,7 +172,7 @@ fn load_weights(files: &Vec<String>) -> Result<Weight> {
 
         let metadata_format = weight_json.metadata.as_ref().and_then(|m| m.format.clone());
 
-        let tensors = match read_safetensors_weights(&mmap, weight_json, header_size) {
+        let tensors = match read_safetensors_weights(&mmap, weight_json, header_size, callback.clone()) {
             Ok(t) => Ok(t),
             Err(e) => {
                 error!("Failed to read weights from {}: {}", file_path, e);

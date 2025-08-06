@@ -34,7 +34,11 @@ pub struct ModelRuntime {
 }
 
 impl ModelRuntime {
-    pub fn load_with_path(root_path: &str, id: &String) -> Result<ModelRuntime> {
+    pub fn load_with_path(
+        root_path: &str,
+        id: &String,
+        callback: Option<PromptStreamCallback>
+    ) -> Result<ModelRuntime> {
         let path = Path::new(&root_path);
         if !path.exists() {
             return Err(Error::ModelPathNotFound(path.display().to_string()));
@@ -43,7 +47,7 @@ impl ModelRuntime {
         let model_path = Self::find_model_path_from_root(&root_path)?;
         let config = Rc::new(Config::new(&model_path)?);
         let name = Self::set_name(&config.model);
-        let weight = Weight::new(&config)?;
+        let weight = Weight::new(&config, callback)?;
         let model = create_model_instance(config.clone())?;
         let tokenizer = Rc::new(Tokenizer::new(config.clone())?);
 

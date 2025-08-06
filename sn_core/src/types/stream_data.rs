@@ -1,53 +1,80 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tracing::error;
+use crate::server::payload::run_model_metadata_response_sse::RunModelMetadataResponseSSE;
+use crate::server::payload::text_generated_metadata_response_sse::TextGeneratedMetadataResponseSSE;
+use crate::server::payload::run_model_response_sse::RunModelResponseSSE;
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "stream_type", content = "data")]
+pub enum StreamDataContent {
+    String(String),
+    RunModelResponseSSE(RunModelResponseSSE),
+    TextGeneratedMetadataResponseSSE(TextGeneratedMetadataResponseSSE),
+    RunModelMetadataResponseSSE(RunModelMetadataResponseSSE)
+}
+
+impl Default for StreamDataContent {
+    fn default() -> Self {
+        StreamDataContent::String(String::new())
+    }
+}
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct StreamData {
-    pub content: String,
+    pub content: StreamDataContent,
     pub error: String,
-    pub metadata: Value,
 }
 
 impl StreamData {
-    pub fn new(content: String, error: String, metadata: Value) -> Self {
+    pub fn new(content: StreamDataContent, error: String) -> Self {
         StreamData {
             content,
             error,
-            metadata,
         }
     }
 
-    pub fn stream_error(error: String) -> Self {
-        let mut stream_data = StreamData::default();
-        stream_data.error = error;
-        stream_data
+    pub fn for_stream_error(error: String) -> Self {
+        StreamData {
+            error,
+            ..Default::default()
+        }
     }
 
-    pub fn stream_content(content: String) -> Self {
-        let mut stream_data = StreamData::default();
-        stream_data.content = content;
-        stream_data
+    pub fn for_string(content: String) -> Self {
+        StreamData {
+            content: StreamDataContent::String(content),
+            ..Default::default()
+        }
     }
 
-    pub fn stream_metadata(metadata: Value) -> Self {
-        let mut stream_data = StreamData::default();
-        stream_data.metadata = metadata;
-        stream_data
+    pub fn for_metadata_text_generated_sse_response(content: RunModelMetadataResponseSSE) -> Self {
+        StreamData {
+            content: StreamDataContent::RunModelMetadataResponseSSE(content),
+            ..Default::default()
+        }
+    }
+    pub fn for_text_generated_metadata_sse_response(content: TextGeneratedMetadataResponseSSE) -> Self {
+        StreamData {
+            content: StreamDataContent::TextGeneratedMetadataResponseSSE(content),
+            ..Default::default()
+        }
+    }
+
+    pub fn for_run_model_sse_response(content: RunModelResponseSSE) -> Self {
+        StreamData {
+            content: StreamDataContent::RunModelResponseSSE(content),
+            ..Default::default()
+        }
     }
 
     pub fn to_json(&self) -> Value {
-        json!({
-            "content": self.content,
-            "error": self.error,
-            "metadata": self.metadata
-        })
+        serde_json::to_value(self).unwrap_or(Value::Null)
     }
 }
 
 impl From<StreamData> for String {
     fn from(data: StreamData) -> Self {
-        serde_json::to_string(&data.to_json()).unwrap_or_else(|e| {
+        serde_json::to_string(&data).unwrap_or_else(|e| {
             error!("Failed to serialize StreamData to JSON: {}", e);
             String::default()
         })

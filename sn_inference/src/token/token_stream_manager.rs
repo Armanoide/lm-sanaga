@@ -15,7 +15,7 @@ use tracing::{debug, error};
 use sn_core::types::message_stats::{MessageStats, MessageStatsBuilder};
 use sn_core::types::stream_data::StreamData;
 
-pub type PromptStreamCallback = Sender<StreamData>;
+pub type PromptStreamCallback = Arc<Sender<StreamData>>;
 pub struct TokenStreamManager {
     tokenizer: Rc<Tokenizer>,
     pub token_generator: Option<Arc<RwLock<TokenGenerator>>>,
@@ -110,7 +110,7 @@ impl TokenStreamManager {
 
                 if let Some(cb) = &callback {
                     // Cal the callback with the decoded response
-                    let _ = cb.send(StreamData::stream_content(gti.text.clone()));
+                    let _ = cb.send(StreamData::for_string(gti.text.clone()));
                 }
 
                 if let Err(e) = gti.end(None) {

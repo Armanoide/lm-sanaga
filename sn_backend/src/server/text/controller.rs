@@ -18,6 +18,7 @@ use tracing::error;
 use sn_core::types::conversation::Conversation;
 use sn_core::types::message::{Message, MessageRole};
 use sn_core::server::payload::generate_text_request::GenerateTextRequest;
+use sn_core::server::payload::text_generated_metadata_response_sse::TextGeneratedMetadataResponseSSE;
 use sn_core::types::message_stats::MessageStats;
 use sn_core::types::stream_data::StreamData;
 use sn_inference::model::model_runtime::GenerateTextResult;
@@ -27,7 +28,7 @@ use crate::db::entities::message::{Convert, Model};
 use crate::db::repository::message::{create_message, get_message_by_id};
 use crate::server::app_state::AppState;
 use crate::error::Result;
-
+use crate::utils::sse_response_builder::SseResponseBuilder;
 
 pub async fn create_or_get_conversation (
     db: Option<&DatabaseConnection>,
@@ -51,11 +52,11 @@ pub async fn create_or_get_conversation (
 ///
 **/
 
-pub fn handle_error_generate_text(err: &String, tx_err: Option<&Sender<StreamData>>) {
+fn handle_error_generate_text(err: &String, tx_err: Option<&Sender<StreamData>>) {
     error!("{}", err);
     let error = format!("Failed to generate text: {}", err);
     if let Some(tx_err) = tx_err {
-        let _ = tx_err.send(StreamData::stream_error(error).into());
+        let _ = tx_err.send(StreamData::for_stream_error(error).into());
     }
 }
 
@@ -74,11 +75,11 @@ async fn store_generate_text_result(
     match create_message(db, &payload, &generate_text_result).await {
         Ok(message) => {
             if let (Some(message), Some(tx_2)) = (&message, tx_2) {
-                let _ = tx_2.send(StreamData::stream_metadata(json!({
-                    "prompt_tps": message.prompt_tps,
-                    "generation_tps": message.generation_tps,
-                    "conversation_id": message.conversation_id,
-                })));
+                let _ = tx_2.send(StreamData::for_text_generated_metadata_sse_response(TextGeneratedMetadataResponseSSE {
+                    prompt_tps: message.prompt_tps,
+                    generation_tps: message.generation_tps,
+                    conversation_id: message.conversation_id,
+                }));
             }
             message
         },
@@ -95,24 +96,18 @@ async fn generate_text_with_sse(
     conversation: Conversation,
 ) -> ResultAPIStream {
     let (tx, rx): (Sender<StreamData>, Receiver<StreamData>) = bounded(100);
+    let tx = Arc::new(tx);
     let tx_2 = tx.clone();
 
-    let bridge = TokenBridge::new(rx);
-    let stream = bridge
-        .into_stream()
-        .map(|stream_data: StreamData | Ok::<_, Error>(format!("data: {}\n\n", stream_data.to_json())));
-    let body = Body::from_stream(stream);
+    let response = SseResponseBuilder::new(rx).build();
 
     tokio::spawn(async move {
 
-        let generate_text_result = {
-            state.runner.read_lock("reading runner for generate_text")
-                .map_err(|e| Error::Core(e))
-                .and_then(| guard| {
-                    guard.generate_text(&payload.model_id, &conversation, Some(tx))
-                        .map_err(|e| Error::Inference(e))
-                })
-        };
+        let generate_text_result = (|| {
+            let guard = state.runner.read_lock("reading runner for generate_text")?;
+            let generate_text_result = guard.generate_text(&payload.model_id, &conversation, Some(tx))?;
+          Ok::<_, Error>(generate_text_result)
+        })();
 
         let generate_text_result = if let Err(err) = generate_text_result {
             handle_error_generate_text(&err.to_string(), Some(&tx_2));
@@ -125,12 +120,7 @@ async fn generate_text_with_sse(
         store_generate_text_result(state.clone(), payload, generate_text_result, Some(&tx_2)).await;
     });
 
-    let response = Response::builder()
-        .header("Content-Type", "text/event-stream")
-        .body(body)
-        // todo: handle error
-        .unwrap();
-    Ok(response)
+    Ok(response?)
 }
 
 async fn generate_text_with_json(

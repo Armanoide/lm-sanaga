@@ -8,6 +8,6 @@ pub async fn get_connection() -> Result<Option<DatabaseConnection>> {
         dotenv()?;
         let database_url = env::var("DATABASE_URL")?;
         let database_name = env::var("DATABASE_NAME")?;
-        init_database(&database_name, &database_name).await?;
-        Ok(Some(sea_orm::Database::connect(format!("{database_url}/{database_name}")).await?))
+        let db = init_database(&database_name, &database_url).await?;
+        Ok(db)
 }

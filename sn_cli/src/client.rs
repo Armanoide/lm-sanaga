@@ -2,6 +2,7 @@ use crate::error::{Error, Result};
 use reqwest::{Client, Response};
 use sn_core::server::payload::create_session_request::CreateSessionRequest;
 use sn_core::server::payload::generate_text_request::GenerateTextRequest;
+use sn_core::server::payload::run_model_request::RunModelRequest;
 
 pub struct CliClient {
     client: Client,
@@ -58,15 +59,16 @@ impl CliClient {
         Ok(self.handle_response(result).await?)
     }
 
-    pub async fn run_model(&self, name: &String) -> Result<String> {
+    pub async fn run_model(&self, json: &RunModelRequest) -> Result<Response> {
         let url = format!("{}/api/v1/models/run", self.base_url);
         let result = self
             .client
             .post(&url)
-            .json(&serde_json::json!({ "name": name }))
+            .json(&serde_json::json!(json))
             .send()
-            .await;
-        Ok(self.handle_response(result).await?)
+            .await?
+            .error_for_status()?;
+        Ok(result)
     }
     pub async fn send_prompt(&self, json: &GenerateTextRequest) -> Result<Response> {
         let url = format!("{}/api/v1/texts/generate", self.base_url);
