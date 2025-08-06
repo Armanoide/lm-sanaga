@@ -25,6 +25,7 @@ use sn_inference::model::model_runtime::GenerateTextResult;
 use crate::db;
 use crate::db::{repository};
 use crate::db::entities::message::{Convert, Model};
+use crate::db::repository::conversation::update_conversation_name;
 use crate::db::repository::message::{create_message, get_message_by_id};
 use crate::server::app_state::AppState;
 use crate::error::Result;
@@ -52,11 +53,56 @@ pub async fn create_or_get_conversation (
 ///
 **/
 
-fn handle_error_generate_text(err: &String, tx_err: Option<&Sender<StreamData>>) {
+fn handle_error_generate_text(err: &String, tx_err: Option<Arc<Sender<StreamData>>>) {
     error!("{}", err);
     let error = format!("Failed to generate text: {}", err);
     if let Some(tx_err) = tx_err {
         let _ = tx_err.send(StreamData::for_stream_error(error).into());
+    }
+}
+
+/// Attempts to generate a short title for a conversation using a text generation model,
+/// then updates the conversation's name in the database.
+///
+/// This function:
+/// - Reads the AI runner from shared state.
+/// - Uses the provided prompt to generate a concise title (4 words).
+/// - Updates the conversation record in the database with the generated title.
+///
+/// # Parameters
+/// - `state`: Shared application state (`Arc<AppState>`) containing the AI runner and DB connection.
+/// - `payload`: JSON payload containing the prompt and model ID for generation.
+/// - `conversation_id`: ID of the conversation to update.
+///
+/// # Behavior
+/// - If the database connection is missing (`state.db` is `None`), the function returns early.
+/// - If text generation fails, it logs an error but does not panic.
+/// - If title generation is successful, it attempts to update the conversation name asynchronously.
+///
+/// ```
+async fn generate_title_conversation(
+    state: Arc<AppState>,
+    payload: Json<GenerateTextRequest>,
+    conversation_id: &i32,
+) {
+    let db = if let Some(db) = &state.db  { db } else { return; };
+
+    let generate_text_result = (||{
+        let guard = state.runner.read_lock("reading runner for resume")?;
+        let conversation = Conversation::from_user_with_content(
+            format!("resume with with 4 words only: {}", payload.prompt
+            ));
+        let generate_text_result = guard.generate_text(&payload.model_id, &conversation, None)?;
+        Ok::<_, Error>(generate_text_result)
+    })();
+    match generate_text_result {
+        Ok(result) => {
+            let (title_conversation, _) = result;
+            let _ = update_conversation_name(db, conversation_id, title_conversation).await;
+        }
+        Err(err) => {
+            error!("Failed to generate title for conversation: {}", err);
+        }
     }
 }
 
@@ -68,13 +114,16 @@ async fn store_generate_text_result(
     state: Arc<AppState>,
     payload: Json<GenerateTextRequest>,
     generate_text_result: GenerateTextResult,
-    tx_2: Option<&Sender<StreamData>>
+    tx: Option<Arc<Sender<StreamData>>>
 ) -> Option<db::entities::message::Model> {
     let db = if let Some(db) = &state.db  { db } else { return None; };
 
     match create_message(db, &payload, &generate_text_result).await {
         Ok(message) => {
-            if let (Some(message), Some(tx_2)) = (&message, tx_2) {
+            if let (Some(message), Some(tx_2)) = (&message, tx) {
+                if payload.conversation_id.is_none() {
+                    generate_title_conversation(state, payload, &message.conversation_id).await;
+                }
                 let _ = tx_2.send(StreamData::for_text_generated_metadata_sse_response(TextGeneratedMetadataResponseSSE {
                     prompt_tps: message.prompt_tps,
                     generation_tps: message.generation_tps,
@@ -84,7 +133,7 @@ async fn store_generate_text_result(
             message
         },
         Err(err) => {
-            handle_error_generate_text(&err.to_string(), tx_2);
+            handle_error_generate_text(&err.to_string(), tx);
             None
         }
     }
@@ -97,7 +146,6 @@ async fn generate_text_with_sse(
 ) -> ResultAPIStream {
     let (tx, rx): (Sender<StreamData>, Receiver<StreamData>) = bounded(100);
     let tx = Arc::new(tx);
-    let tx_2 = tx.clone();
 
     let response = SseResponseBuilder::new(rx).build();
 
@@ -105,19 +153,19 @@ async fn generate_text_with_sse(
 
         let generate_text_result = (|| {
             let guard = state.runner.read_lock("reading runner for generate_text")?;
-            let generate_text_result = guard.generate_text(&payload.model_id, &conversation, Some(tx))?;
+            let generate_text_result = guard.generate_text(&payload.model_id, &conversation, Some(tx.clone()))?;
           Ok::<_, Error>(generate_text_result)
         })();
 
         let generate_text_result = if let Err(err) = generate_text_result {
-            handle_error_generate_text(&err.to_string(), Some(&tx_2));
+            handle_error_generate_text(&err.to_string(), Some(tx));
             return;
         } else {
             //todo: handle the case where generate_text_result is None
             generate_text_result.unwrap()
         };
 
-        store_generate_text_result(state.clone(), payload, generate_text_result, Some(&tx_2)).await;
+        store_generate_text_result(state, payload, generate_text_result, Some(tx)).await;
     });
 
     Ok(response?)
@@ -146,7 +194,6 @@ async fn generate_text_with_json(
             "conversation_id": message.conversation_id,
         })).into_response())
     } else {
-        // json with error generated
         Err(Error::FailedToGenerateText(
             json!({
                 "error": "Failed to save generated text",

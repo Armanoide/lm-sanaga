@@ -1,6 +1,6 @@
 use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, ModelTrait, QueryOrder, Set};
 use crate::db;
-use crate::error::{Result};
+use crate::error::{Result, Error};
 use sea_orm::QueryFilter;
 use sea_orm::ColumnTrait;
 
@@ -55,4 +55,69 @@ pub async fn get_conversations_by_session_id(db: &DatabaseConnection, session_id
         .all(db)
         .await?;
     Ok(conversations)
+}
+
+
+/// Deletes a conversation from the database by its ID, if it exists.
+///
+/// This function performs the following:
+/// - Attempts to find the conversation with the given `id`.
+/// - If found, deletes it from the database.
+/// - If not found, it silently does nothing (no error is returned).
+///
+/// # Parameters
+/// - `db`: Reference to the database connection.
+/// - `id`: ID of the conversation to delete.
+///
+/// # Returns
+/// - `Ok(())` if the operation succeeded or the conversation was not found.
+/// - `Err` if there was a database error during lookup or deletion.
+///
+/// # Errors
+/// Returns a `DbErr` (or your crate's error type via `Result`) if:
+/// - The conversation lookup fails.
+/// - The deletion fails.
+///
+/// ```
+pub async fn delete_conversation_by_id(db: &DatabaseConnection, id: &i32) -> Result<()> {
+    let conversation = db::entities::conversation::Entity::find_by_id(*id).one(db).await?;
+    if let Some(conversation) = conversation {
+        conversation.delete(db).await?;
+    }
+    Ok(())
+}
+
+/// Updates the name of a conversation in the database by its ID.
+///
+/// This function:
+/// - Looks up the conversation by ID.
+/// - If found, updates its `name` field with the provided `name`.
+/// - Trims whitespace and removes all newline (`\n`, `\r`) characters from the name before saving.
+/// - Returns the updated conversation model.
+///
+/// # Parameters
+/// - `db`: Reference to the database connection.
+/// - `id`: ID of the conversation to update.
+/// - `name`: New name for the conversation (will be cleaned of newlines).
+///
+/// # Returns
+/// - `Ok(Model)` with the updated conversation on success.
+/// - `Err(Error::ConversationNotFound)` if the conversation does not exist.
+/// - `Err(DbErr)` if the database update fails.
+///
+/// # Errors
+/// This function returns an error if:
+/// - The conversation is not found.
+/// - There is a database failure during the update.
+///
+/// ```
+pub async fn update_conversation_name(db: &DatabaseConnection, id: &i32, name: String) -> Result<db::entities::conversation::Model> {
+    let mut conversation = db::entities::conversation::Entity::find_by_id(*id).one(db).await?
+        .ok_or_else(|| Error::ConversationNotFound)?;
+
+    let mut conversation: db::entities::conversation::ActiveModel = conversation.into();
+    conversation.name = Set(Some(name.trim().replace('\n', "").replace('\r', "")));
+    println!("Updating conversation: {:?}", conversation);
+    let updated_conversation = conversation.update(db).await?;
+    Ok(updated_conversation)
 }

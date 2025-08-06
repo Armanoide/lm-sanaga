@@ -26,3 +26,4 @@ dhat-heap.json
 flamegraph.svg
 *.samply
 .env
+*.db

@@ -18,6 +18,18 @@ impl Conversation {
             messages: vec![message],
         }
     }
+    pub fn from_user_with_content(content: String) -> Self {
+        let message = Message {
+            role: MessageRole::User,
+            content,
+            stats: None,
+        };
+        Conversation {
+            name: None,
+            id: None,
+            messages: vec![message],
+        }
+    }
     pub fn from_vec(messages: Vec<Message>) -> Self {
         Conversation { name: None, id: None, messages }
     }
