@@ -119,4 +119,10 @@ pub enum Error {
 
     #[error("Tokenizer not found when generating text")]
     MissingTokenizer,
+    
+    #[error("Routine missing weight for model: {0}")]
+    RoutineMissingWeight(String),
+
+    #[error("Routine missing for model: {0}")]
+    RoutineMissingModel(String),
 }
