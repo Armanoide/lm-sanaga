@@ -2,6 +2,7 @@ use crate::config::config_models::llama::LLaMARopeScalingConfig;
 use crate::error::{Error, Result};
 use mlx_rs::ops::{arange, gt, logical_and, lt, power, r#where};
 use mlx_rs::{Array, rope};
+use crate::model::models::default::rope::BaseRope;
 
 const PI: f32 = std::f64::consts::PI as f32;
 #[derive(Clone, Debug)]
@@ -83,3 +84,5 @@ impl RopeLlama {
         .map_err(|e| Error::ExceptionMLX(e))
     }
 }
+
+impl BaseRope for RopeLlama {}

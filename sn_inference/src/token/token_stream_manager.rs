@@ -14,6 +14,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tracing::{debug, error};
 use sn_core::types::message_stats::{MessageStats, MessageStatsBuilder};
 use sn_core::types::stream_data::StreamData;
+use crate::cache::k_v_cache::k_v_cache::{ArcCacheList, CacheSize};
 
 pub type PromptStreamCallback = Arc<Sender<StreamData>>;
 pub struct TokenStreamManager {
@@ -39,7 +40,7 @@ impl TokenStreamManager {
         }
     }
 
-    fn prelude_generate_text(&mut self, prompt: Vec<u32>) -> Result<()> {
+    fn prelude_generate_text(&mut self, prompt: Vec<u32>, cache: ArcCacheList) -> Result<()> {
         let eot_ids = &self.tokenizer.eot_ids();
         let model = self.model.clone();
 
@@ -47,7 +48,7 @@ impl TokenStreamManager {
         self.token_receiver = Some(rx);
 
         // Create TokenGenerator on main thread to avoid error
-        let tg = TokenGenerator::new(model, prompt, eot_ids.clone(), Some(tx))?;
+        let tg = TokenGenerator::new(model, prompt, eot_ids.clone(), cache, Some(tx))?;
 
         // Set token_generator so it can be used later
         let tg_arc = Arc::new(RwLock::new(tg));
@@ -76,9 +77,10 @@ impl TokenStreamManager {
     pub fn generate_text(
         &mut self,
         prompt: Vec<u32>,
+        cache: ArcCacheList,
         callback: Option<PromptStreamCallback>,
     ) -> Result<(String)> {
-        self.prelude_generate_text(prompt)?;
+        self.prelude_generate_text(prompt, cache.clone())?;
         let eot_ids = self.tokenizer.eot_ids();
         let header_token_ids = self.tokenizer.header_token_ids();
         let mut stop = false;
@@ -98,7 +100,6 @@ impl TokenStreamManager {
 
                 // Check if any token matches EOT
                 stop = eot_ids.contains(gti.get_token());
-
                 if !has_header_start && header_token_ids.contains(gti.get_token()) {
                     has_header_start = true;
                 } else if !has_header_end && has_header_start && header_token_ids.contains(gti.get_token()) {
@@ -126,7 +127,9 @@ impl TokenStreamManager {
         } else {
             return Err(Error::TokenGenerationStartFailure);
         }
+        println!("cache size: {}", cache.cache_size());
         Ok(self.get_text())
+
     }
 
     pub fn get_average_stats(&self) -> Result<Option<(MessageStats)>> {

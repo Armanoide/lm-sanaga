@@ -14,6 +14,7 @@ pub struct Config {
     pub root_path: String,
     pub tokenizer_custom_path: String,
     pub tokenizer_path: String,
+    pub tokenizer_vocab_path: String,
 }
 
 impl Config {
@@ -31,6 +32,10 @@ impl Config {
             .join("tokenizer_config.json")
             .display()
             .to_string();
+        let tokenizer_vocab_path = Path::new(&root_path)
+            .join("vocab.json")
+            .display()
+            .to_string();
 
         let config_model = Config::from_file::<ConfigModel>(&config_path)?;
         let config_tokenizer_custom =
@@ -42,6 +47,7 @@ impl Config {
             root_path,
             tokenizer_custom_path,
             tokenizer_path,
+            tokenizer_vocab_path,
         })
     }
 

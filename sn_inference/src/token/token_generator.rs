@@ -1,7 +1,5 @@
 use std::collections::HashSet;
-use crate::cache::k_v_cache::ArcCacheList;
 use crate::error::{Error, Result};
-use crate::factory::k_v_cache::create_prompt_cache;
 use crate::model::model::Model;
 use crate::model::model_kind::ModelKind;
 use crate::token::token_generated_info::TokenGeneratedInfo;
@@ -27,6 +25,7 @@ pub type SamplerFn = Arc<dyn Fn(&Array) -> Result<Array> + Send + Sync>;
 
 type LogitsProcessor = Arc<dyn Fn(&Array, &Array) -> Result<Array> + Send + Sync>;
 use sn_core::utils::rw_lock::RwLockExt;
+use crate::cache::k_v_cache::k_v_cache::ArcCacheList;
 use crate::utils::mlx::mlx_compute_lock::MLX_COMPUTE_LOCK;
 
 pub struct TokenGeneratorOpts {
@@ -58,22 +57,19 @@ pub struct TokenGenerator {
     pub generation_duration: f64,
 }
 
-
 impl TokenGenerator {
     pub fn new(
         model: Arc<RwLock<ModelKind>>,
         prompt: Vec<u32>,
         eot_ids: HashSet<u32>,
+        cache: ArcCacheList,
         token_sender: Option<Sender<TokenGeneratedInfo>>,
     ) -> Result<TokenGenerator> {
         let default_sampler: SamplerFn = Arc::new(|x: &Array| Ok(argmax_axis(&x, -1, false)?));
         let max_tokens = 10000000;
         let prompt_len = prompt.len();
         let prompt = Array::from_slice(prompt.as_slice(), &[prompt_len as i32]);
-        let cache = {
-            let context = "reading model to create a prompt cache";
-            create_prompt_cache(&*model.read_lock(context)?)
-        };
+
         Ok(TokenGenerator {
             token_sender,
             cache,
@@ -216,11 +212,9 @@ impl TokenGenerator {
     }
 
     pub fn generate(&mut self, input_embeddings: Option<&Array>) -> Result<()> {
-
         let prompt_input = self.prompt.clone();
         let pre_fill_start = Instant::now();
         let prompt_input = self.step_prefill(prompt_input, input_embeddings)?;
-
         let (mut y, mut logprobs) = self.forward_step(&prompt_input, input_embeddings)?;
         {
             let _guard = MLX_COMPUTE_LOCK.lock()
@@ -280,7 +274,3 @@ impl TokenGenerator {
 
 unsafe impl Send for TokenGenerator {}
 unsafe impl Sync for TokenGenerator {}
-
-struct TTT {
-
-}

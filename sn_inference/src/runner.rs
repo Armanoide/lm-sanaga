@@ -10,11 +10,16 @@ use serde::{Deserialize, Serialize};
 use tracing::{error, info};
 use sn_core::types::conversation::Conversation;
 use sn_core::utils::rw_lock::RwLockExt;
+use crate::cache::k_v_cache::k_v_cache::ArcCacheList;
+use crate::cache::k_v_cache::k_v_cache_session::KvCacheSession;
+use crate::factory::k_v_cache::{create_cache_from_model_runtime};
+use crate::model::model_kind::ModelKind;
 
 const BASE_PATH_DEFAULT: &str = "~/.sanaga";
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug)]
 pub struct Runner {
     pub models: Arc<RwLock<Vec<Arc<ModelRuntime>>>>,
+    pub session_caches: Arc<RwLock<Vec<KvCacheSession>>>
 }
 
 
@@ -40,9 +45,16 @@ fn get_base_path_models() -> String {
     get_base_path().add("/models/")
 }
 
+fn create_cache(model_runtime: Arc<ModelRuntime>) -> Result<ArcCacheList> {
+    Ok(create_cache_from_model_runtime(model_runtime)?)
+}
+
 impl Runner {
     pub fn new() -> Self {
-        Runner { models: Arc::new(RwLock::new(Vec::new())) }
+        Runner {
+            models: Arc::new(RwLock::new(Vec::new())),
+            session_caches: Arc::new(RwLock::new(Vec::new())),
+        }
     }
 
     fn generate_path_id(salt: &String) -> String {
@@ -115,14 +127,53 @@ impl Runner {
 
     }
 
+    pub fn get_session_cache(
+        &self,
+        session_id: Option<i32>,
+        model_id: &str
+    ) -> Result<ArcCacheList> {
+        let model = match self.get_model_by_id(model_id){
+            Some(m) => m,
+            None => return Err(Error::ModelRuntimeNotFoundWithId(model_id.to_string()))
+        };
+
+        if let Some(id) = session_id {
+            // Try to find existing session cache
+            {
+                let guard = self.session_caches.read_lock("check existing session cache")?;
+                if let Some(existing) = guard.iter().find(|c| c.session_id == id) {
+                    return Ok(existing.cache.clone());
+                }
+            }
+
+            // Create new session cache and store it
+            let new_cache = create_cache(model.clone())?;
+            let new_session = KvCacheSession {
+                session_id: id,
+                cache: new_cache.clone(),
+            };
+            self.session_caches
+                .write_lock("insert new session cache")?
+                .push(new_session);
+
+            Ok(new_cache)
+        } else {
+            // Anonymous session: return a fresh cache, not stored
+            create_cache(model.clone())
+        }
+    }
+
+
     pub fn generate_text(
         &self,
         model_id: &str,
         conversation: &Conversation,
+        session_id: Option<i32>,
         callback: Option<PromptStreamCallback>,
     ) -> Result<GenerateTextResult>  {
         if let Some(model_runtime) = self.get_model_by_id(model_id) {
-            model_runtime.generate_text(conversation, callback)
+            let cache = self.get_session_cache(session_id, model_id)?;
+            model_runtime.generate_text(conversation, cache, callback)
         } else {
             Err(Error::ModelRuntimeNotFoundWithId(model_id.to_string()))
         }

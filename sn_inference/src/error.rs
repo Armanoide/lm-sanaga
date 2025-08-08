@@ -109,5 +109,14 @@ pub enum Error {
     ModelRuntimeNotFoundWithId(String),
 
     #[error("MLX compute lock error")]
-    MLXComputeLock
+    MLXComputeLock,
+
+    #[error("Empty prompt generated")]
+    EmptyPrompt,
+
+    #[error("Model not found when generating text")]
+    MissingModel,
+
+    #[error("Tokenizer not found when generating text")]
+    MissingTokenizer,
 }

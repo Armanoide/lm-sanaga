@@ -35,6 +35,7 @@ pub fn render_chat_template(
     template_str: &str,
     return_assistant_tokens_mask: bool,
     continue_final_message: bool,
+    add_generation_prompt: Option<bool>,
     // other args like add_generation_prompt, kwargs could be added here
 ) -> Result<(String, Option<Vec<(usize, usize)>>), Error> {
     // Compile template once
@@ -70,6 +71,10 @@ pub fn render_chat_template(
             .map(|d| json!({ "title": d.title, "text": d.text }))
             .collect();
         context.insert("documents", json!(docs_json));
+    }
+
+    if let Some(add_generation_prompt) = add_generation_prompt {
+        context.insert("add_generation_prompt", json!({"add_generation_prompt": add_generation_prompt}));
     }
 
     let rendered = template.render(context)?;

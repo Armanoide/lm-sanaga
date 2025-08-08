@@ -16,6 +16,7 @@ use std::sync::{Arc, RwLock};
 use walkdir::WalkDir;
 use sn_core::types::conversation::Conversation;
 use sn_core::types::message_stats::MessageStats;
+use crate::cache::k_v_cache::k_v_cache::ArcCacheList;
 
 pub type GenerateTextResult = (String, Option<MessageStats>);
 
@@ -65,6 +66,7 @@ impl ModelRuntime {
     fn set_name(config_model: &ConfigModel) -> String {
         match config_model {
             ConfigModel::LLaMA(llama_config) => llama_config.get_name(),
+            ConfigModel::Qwen3(qwen3_config) => qwen3_config.get_name(),
         }
     }
 
@@ -98,6 +100,14 @@ impl ModelRuntime {
                         let context = "reading model to quantize";
                         box_model.write_lock(context)?.quantize(0, 0)?;
                     }
+                },
+                ConfigModel::Qwen3(qwen3_config) => {
+                    if qwen3_config.quantization.is_some() {
+                        // Passing 0,0 as no effect the model, because the model will automatically
+                        // quantize compute from his config file.
+                        let context = "reading model to quantize";
+                        box_model.write_lock(context)?.quantize(0, 0)?;
+                    }
                 }
             }
 
@@ -110,23 +120,34 @@ impl ModelRuntime {
     pub fn generate_text(
         &self,
         conversation: &Conversation,
+        cache: ArcCacheList,
         callback: Option<PromptStreamCallback>,
     ) -> Result<GenerateTextResult> {
-        if let (Some(tokenizer), Some(model)) = (&self.tokenizer, &self.model) {
-            let (inputs, _) = tokenizer.apply_chat_template(conversation)?;
-            let prompt = tokenizer.encode_prompt(vec!(inputs))?;
-            let mut sr = TokenStreamManager::new(model.clone(), tokenizer.clone());
-            let generated_text = sr.generate_text(prompt, callback)?;
-            let stats = sr.get_average_stats()?;
-            Ok((generated_text, stats))
+        let tokenizer = self.tokenizer.as_ref().ok_or(Error::MissingTokenizer)?;
+        let model = self.model.as_ref().ok_or(Error::MissingModel)?;
+
+        // Render prompt from conversation
+        let (inputs, _) = tokenizer.apply_chat_template(conversation)?;
+        let prompt_ids = tokenizer.encode_prompt(vec![inputs])?;
+
+        if prompt_ids.is_empty() {
+            return Err(Error::EmptyPrompt);
+        }
+
+        let mut stream = TokenStreamManager::new(model.clone(), tokenizer.clone());
+        let generated_text = stream.generate_text(prompt_ids, cache, callback)?;
+        let stats = stream.get_average_stats()?;
+
+        Ok((generated_text, stats))
+    }
+
+    pub fn get_num_layer(&self) -> Result<usize> {
+        if let Some(model) = &self.model {
+            let guard = model.read_lock("get_num_layer")?;
+            Ok(guard.get_num_layer())
         } else {
-            Ok((String::default(), None))
+            Ok(1)
         }
     }
 }
-
-
-
-//use kv-cache in the runner istead of token_generation.rs
-
 

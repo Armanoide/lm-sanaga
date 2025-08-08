@@ -9,6 +9,7 @@ use std::rc::Rc;
 use tokenizers::tokenizer::Tokenizer as HugTokenizer;
 use tracing::debug;
 use sn_core::types::conversation::Conversation;
+use crate::config::config_model::ConfigModel;
 
 #[derive(Debug)]
 pub struct Tokenizer {
@@ -23,39 +24,50 @@ impl Tokenizer {
         Ok(Tokenizer { tool, config })
     }
 
-    pub fn get_chat_template(&self) -> &str {
+    pub fn get_chat_template(&self) -> String {
         // check string or dict ?
-        self.config.tokenizer_custom.chat_template.as_str()
+        self.config.tokenizer_custom.chat_template.clone()
     }
 
     pub fn apply_chat_template(
         &self,
-        conversation: &Conversation,
+        conversations: &Conversation,
     ) -> Result<(String, Option<Vec<(usize, usize)>>)> {
         let mut env = Environment::new();
-        let chat_template = self.get_chat_template();
+        let mut chat_template = self.get_chat_template();
         let chat_template_name = "chat";
-        env.add_template(chat_template_name, chat_template)?;
+        let mut conversations = conversations.clone();
+
+        {// remove think
+            // from template
+            chat_template = chat_template.replace("message.content.split('</think>')[-1].lstrip('\\n')", "message.content");
+            println!("chat_template: {}", chat_template);
+             conversations.messages.iter_mut().for_each(|m| m.remove_think());
+        }
+            println!("chat_template2: {}", chat_template);
+
+
+        env.add_template(chat_template_name, chat_template.as_str())?;
         render_chat_template(
-            conversation,
+            &conversations,
             None,
             None,
             &env,
             chat_template_name,
             false,
             false,
+            Some(true),
         )
     }
 
     pub fn encode_prompt(&self, messages: Vec<String>) -> Result<Vec<u32>> {
-        match self.tool.encode_batch(messages, false) {
-            Ok(encoding) => Ok(encoding
-                .par_iter()
-                .fold(
-                    || Vec::<u32>::new(),
-                    |a, b| [&a[..], &b.get_ids()[..]].concat(),
-                )
-                .reduce(|| Vec::<u32>::new(), |a, b| [&a[..], &b[..]].concat())),
+        match self.tool.encode_batch(messages, true) {
+            Ok(encoding) => Ok(
+                encoding
+                    .par_iter()
+                    .flat_map(|e| e.get_ids().to_owned())
+                    .collect()
+            ),
             Err(e) => Err(Error::EncodingProcessingError(e)),
         }
     }
@@ -95,19 +107,13 @@ impl Tokenizer {
     }
 
     pub fn eot_ids(&self) -> HashSet<u32> {
-        self.tool
-            .get_added_tokens_decoder()
-            .par_iter()
-            .filter_map(|(id, ad)| {
-                if ad.content.contains("<|eot_id|>")
-                    || ad.content.contains("<|eos|>")
-                    || ad.content.contains("<|endoftext|>")
-                {
-                    Some(*id)
-                } else {
-                    None
-                }
-            })
-            .collect()
+        match self.config.model.as_ref() {
+            ConfigModel::LLaMA(config) => {
+                config.eos_token_id.iter().map(|i| i.clone() as u32).collect()
+            }
+            ConfigModel::Qwen3(config) => {
+                HashSet::from([config.eos_token_id as u32])
+            }
+        }
     }
 }

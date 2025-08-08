@@ -7,6 +7,6 @@ pub trait NormExt {
 
 impl NormExt for RmsNorm {
     fn update_weight(&mut self, x: &Array) {
-        self.weight.value = x.to_owned();
+        self.weight.value = x.clone();
     }
 }

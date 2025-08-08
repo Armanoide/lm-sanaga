@@ -92,7 +92,7 @@ async fn generate_title_conversation(
         let conversation = Conversation::from_user_with_content(
             format!("resume with with 4 words only: {}", payload.prompt
             ));
-        let generate_text_result = guard.generate_text(&payload.model_id, &conversation, None)?;
+        let generate_text_result = guard.generate_text(&payload.model_id, &conversation, None, None)?;
         Ok::<_, Error>(generate_text_result)
     })();
     match generate_text_result {
@@ -153,7 +153,7 @@ async fn generate_text_with_sse(
 
         let generate_text_result = (|| {
             let guard = state.runner.read_lock("reading runner for generate_text")?;
-            let generate_text_result = guard.generate_text(&payload.model_id, &conversation, Some(tx.clone()))?;
+            let generate_text_result = guard.generate_text(&payload.model_id, &conversation, payload.session_id, Some(tx.clone()))?;
           Ok::<_, Error>(generate_text_result)
         })();
 
@@ -180,7 +180,7 @@ async fn generate_text_with_json(
         state.runner.read_lock("reading runner for generate_text")
             .map_err(|e| Error::Core(e))
             .and_then(| guard| {
-                guard.generate_text(&payload.model_id, &conversation, None)
+                guard.generate_text(&payload.model_id, &conversation, payload.session_id, None)
                     .map_err(|e| Error::Inference(e))
             })
     }?;

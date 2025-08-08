@@ -3,10 +3,12 @@ use serde::de;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use std::rc::Rc;
+use crate::config::config_models::qwen3::Qwen3Config;
 
 #[derive(Debug, Clone)]
 pub enum ConfigModel {
     LLaMA(Rc<LLaMAConfig>),
+    Qwen3(Rc<Qwen3Config>),
 }
 
 pub trait ConfigModelCommon {
@@ -32,7 +34,13 @@ impl<'de> Deserialize<'de> for ConfigModel {
                     serde_json::from_value(llama_value).map_err(de::Error::custom)?;
                 Ok(ConfigModel::LLaMA(Rc::new(llama_config)))
             }
-            other => Err(de::Error::unknown_variant(other, &["llama"])),
+            "qwen3" => {
+                let qwen3_value = Value::Object(value);
+                let qwen3_config: Qwen3Config =
+                    serde_json::from_value(qwen3_value).map_err(de::Error::custom)?;
+                Ok(ConfigModel::Qwen3(Rc::new(qwen3_config)))
+            }
+            other => Err(de::Error::unknown_variant(other, &["qwen3"])),
         }
     }
 }
@@ -44,6 +52,7 @@ impl Serialize for ConfigModel {
     {
         match self {
             ConfigModel::LLaMA(config) => config.serialize(serializer),
+            ConfigModel::Qwen3(config) => config.serialize(serializer),
         }
     }
 }
