@@ -1,8 +1,8 @@
-use crate::model::model::Model;
-use std::sync::{Arc, RwLock};
 use crate::cache::k_v_cache::k_v_cache::{ArcCacheList, KVCache};
-use crate::model::model_runtime::ModelRuntime;
 use crate::error::Result;
+use crate::model::model::Model;
+use crate::model::model_runtime::ModelRuntime;
+use std::sync::{Arc, RwLock};
 
 /*pub fn create_prompt_cache<T: Model + ?Sized>(model: &T) -> ArcCacheList {
     let n_layer = model.get_num_layer();

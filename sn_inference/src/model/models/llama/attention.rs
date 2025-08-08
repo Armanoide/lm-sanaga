@@ -1,7 +1,8 @@
+use crate::cache::k_v_cache::k_v_cache::ArcCacheItem;
 use crate::config::config_model::ConfigModel;
 use crate::config::config_models::llama::LLaMAConfig;
 use crate::error::{Error, Result};
-use crate::factory::rope::{initialize_rope, RopeModelType};
+use crate::factory::rope::{RopeModelType, initialize_rope};
 use crate::mask::mask::AttentionMask;
 use crate::model::models::llama::rope::RopeLlama;
 use crate::model::weight::Tensor;
@@ -16,7 +17,6 @@ use mlx_rs::nn::{Linear, LinearBuilder};
 use mlx_rs::quantization::{MaybeQuantized, Quantizable};
 use sn_core::utils::rw_lock::{RwLockExt, RwLockExtOpt};
 use std::rc::Rc;
-use crate::cache::k_v_cache::k_v_cache::ArcCacheItem;
 
 #[derive(Clone, Debug)]
 pub struct AttentionLlama {

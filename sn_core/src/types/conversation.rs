@@ -1,7 +1,7 @@
-use std::fmt::Display;
-use serde::{Deserialize, Serialize};
 use crate::types::message::{Message, MessageRole};
 use crate::types::message_stats::MessageStats;
+use serde::{Deserialize, Serialize};
+use std::fmt::Display;
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct Conversation {
@@ -31,7 +31,11 @@ impl Conversation {
         }
     }
     pub fn from_vec(messages: Vec<Message>) -> Self {
-        Conversation { name: None, id: None, messages }
+        Conversation {
+            name: None,
+            id: None,
+            messages,
+        }
     }
     pub fn new() -> Self {
         Conversation {

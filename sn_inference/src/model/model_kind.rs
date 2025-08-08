@@ -1,13 +1,13 @@
+use crate::cache::k_v_cache::k_v_cache::{ArcCacheItem, ArcCacheList};
 use crate::error::{Error, Result};
 use crate::mask::mask::AttentionMask;
 use crate::model::model::Model;
 use crate::model::models::llama::llama::ModelLLama;
+use crate::model::models::qwen3::qwen3::ModelQwen3;
 use crate::model::weight::{Tensor, Weight};
 use crate::module::Module;
 use crate::quantized::Quantize;
 use mlx_rs::Array;
-use crate::cache::k_v_cache::k_v_cache::{ArcCacheItem, ArcCacheList};
-use crate::model::models::qwen3::qwen3::ModelQwen3;
 
 macro_rules! delegate_to_variants {
     // For &self methods
@@ -29,7 +29,7 @@ macro_rules! delegate_to_variants {
 #[derive(Debug)]
 pub enum ModelKind {
     LLaMA(ModelLLama),
-    Qwen3(ModelQwen3)
+    Qwen3(ModelQwen3),
 }
 
 impl Module for ModelKind {

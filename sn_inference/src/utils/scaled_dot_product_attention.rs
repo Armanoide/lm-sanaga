@@ -1,7 +1,7 @@
+use crate::cache::k_v_cache::k_v_cache::KVCache;
 use crate::mask::mask::AttentionMask;
 use mlx_rs::Array;
 use mlx_rs::error::Exception;
-use crate::cache::k_v_cache::k_v_cache::KVCache;
 
 pub fn scaled_dot_product_attention(
     queries: &Array,

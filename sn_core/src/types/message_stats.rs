@@ -27,7 +27,10 @@ impl MessageStatsBuilder {
         self
     }
 
-    pub fn with_generation_duration(&mut self, generation_duration: f64) -> &mut MessageStatsBuilder {
+    pub fn with_generation_duration(
+        &mut self,
+        generation_duration: f64,
+    ) -> &mut MessageStatsBuilder {
         self.generation_duration = generation_duration;
         self
     }

@@ -1,7 +1,7 @@
+use crate::error::{Error, Result};
+use crate::types::message_stats::MessageStats;
 use serde::{Deserialize, Serialize};
 use tracing::error;
-use crate::types::message_stats::MessageStats;
-use crate::error::{Result, Error};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Message {
     pub content: String,
@@ -55,7 +55,7 @@ impl TryFrom<&str> for MessageRole {
                 let format_err = format!("Unknown message role: {}", role);
                 error!(format_err);
                 Err(Error::UnknownMessageRole(format_err))
-            },
+            }
         }
     }
 }
@@ -108,8 +108,14 @@ mod tests {
     #[test]
     fn test_message_role_try_from_valid() {
         assert_eq!(MessageRole::try_from("user").unwrap(), MessageRole::User);
-        assert_eq!(MessageRole::try_from("assistant").unwrap(), MessageRole::Assistant);
-        assert_eq!(MessageRole::try_from("system").unwrap(), MessageRole::System);
+        assert_eq!(
+            MessageRole::try_from("assistant").unwrap(),
+            MessageRole::Assistant
+        );
+        assert_eq!(
+            MessageRole::try_from("system").unwrap(),
+            MessageRole::System
+        );
     }
 
     #[test]

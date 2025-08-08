@@ -1,9 +1,9 @@
+use crate::cache::k_v_cache::k_v_cache::KVCache;
 use crate::mask::mask::AttentionMask;
 use mlx_rs::Array;
 use mlx_rs::error::Exception;
 use mlx_rs::ops::arange;
 use std::cmp::min;
-use crate::cache::k_v_cache::k_v_cache::KVCache;
 
 pub fn create_causal_mask(
     n: i32,

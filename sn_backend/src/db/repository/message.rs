@@ -1,12 +1,14 @@
-use axum::Json;
-use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, Iden, ModelTrait, QueryOrder, Set};
-use sn_core::types::message::{MessageRole};
-use sn_core::server::payload::generate_text_request::GenerateTextRequest;
-use sn_inference::model::model_runtime::GenerateTextResult;
-use crate::db::{entities};
+use crate::db::entities;
 use crate::db::repository::conversation::{create_conversation, get_conversation_by_id};
 use crate::db::repository::session::get_session;
-use crate::error::{Result, Error};
+use crate::error::{Error, Result};
+use axum::Json;
+use sea_orm::{
+    ActiveModelTrait, DatabaseConnection, EntityTrait, Iden, ModelTrait, QueryOrder, Set,
+};
+use sn_core::server::payload::generate_text_request::GenerateTextRequest;
+use sn_core::types::message::MessageRole;
+use sn_inference::model::model_runtime::GenerateTextResult;
 
 /// Creates two messages (user and assistant) for a given session and conversation.
 ///
@@ -26,10 +28,14 @@ use crate::error::{Result, Error};
 pub async fn create_message(
     db: &DatabaseConnection,
     payload: &Json<GenerateTextRequest>,
-    generate_text_result: &GenerateTextResult
+    generate_text_result: &GenerateTextResult,
 ) -> Result<(Option<entities::message::Model>)> {
-
-    let GenerateTextRequest { session_id, conversation_id, prompt, .. } = &payload.0;
+    let GenerateTextRequest {
+        session_id,
+        conversation_id,
+        prompt,
+        ..
+    } = &payload.0;
 
     let session_id = match session_id {
         Some(id) => id.clone(),
@@ -43,14 +49,14 @@ pub async fn create_message(
     };
 
     let conversation_id = match conversation_id {
-        Some( id) => id,
+        Some(id) => id,
         None => &0,
     };
 
     // Attempt to retrieve the conversation, or create a new one if it doesn't exist
     let conversation = match get_conversation_by_id(&db, &conversation_id).await? {
         Some(conv) => conv,
-        None => create_conversation(&db, &session.id).await?
+        None => create_conversation(&db, &session.id).await?,
     };
 
     let new_message_user = entities::message::ActiveModel {
@@ -87,13 +93,13 @@ pub async fn create_message(
 /// * `Err` - If a database error occurs.
 pub async fn get_message_by_id(
     db: &DatabaseConnection,
-    message_id: i32
+    message_id: i32,
 ) -> Result<Option<entities::message::Model>> {
     entities::message::Entity::find_by_id(message_id)
-        .one(db).await
+        .one(db)
+        .await
         .map_err(Error::from)
 }
-
 
 /// Retrieves all messages associated with a conversation ID from the request payload,
 /// ordered by creation time in ascending order.
@@ -108,10 +114,11 @@ pub async fn get_message_by_id(
 /// * `Err` - If a database error occurs.
 pub async fn get_messages_from_payload(
     db: &DatabaseConnection,
-    payload: &Json<GenerateTextRequest>
+    payload: &Json<GenerateTextRequest>,
 ) -> Result<Option<Vec<entities::message::Model>>> {
-
-    let GenerateTextRequest { conversation_id,.. } = payload.0;
+    let GenerateTextRequest {
+        conversation_id, ..
+    } = payload.0;
 
     let conversation_id = match conversation_id {
         Some(id) => id,
@@ -123,7 +130,8 @@ pub async fn get_messages_from_payload(
         None => return Ok(None),
     };
 
-    let messages = conversation.find_related(entities::message::Entity)
+    let messages = conversation
+        .find_related(entities::message::Entity)
         .order_by_asc(entities::message::Column::CreatedAt)
         .all(db)
         .await?;

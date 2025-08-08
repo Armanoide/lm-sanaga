@@ -1,6 +1,6 @@
 use crate::error::{Error, Result};
-use mlx_rs::{Array, rope};
 use crate::model::models::default::rope::BaseRope;
+use mlx_rs::{Array, rope};
 
 const PI: f32 = std::f64::consts::PI as f32;
 #[derive(Clone, Debug)]
@@ -11,11 +11,7 @@ pub struct RopeQwen3 {
 }
 
 impl RopeQwen3 {
-    pub fn new(
-        dims: i32,
-        base: f32,
-        traditional: bool,
-    ) -> Result<RopeQwen3> {
+    pub fn new(dims: i32, base: f32, traditional: bool) -> Result<RopeQwen3> {
         let dims = dims;
         let traditional = traditional;
 
@@ -39,6 +35,4 @@ impl RopeQwen3 {
     }
 }
 
-impl BaseRope for RopeQwen3 {
-
-}
+impl BaseRope for RopeQwen3 {}

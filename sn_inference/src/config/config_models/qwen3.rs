@@ -1,7 +1,7 @@
-use serde::{Deserialize, Serialize};
 use crate::config::config_model::ConfigModelCommon;
 use crate::config::config_models::llama::LLaMAConfig;
 use crate::config::config_models::quantization_config::QuantizationConfig;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Qwen3Config {
@@ -40,9 +40,7 @@ pub struct Qwen3Config {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Qwen3RopeScalingConfig  {
-    
-}
+pub struct Qwen3RopeScalingConfig {}
 
 impl ConfigModelCommon for Qwen3Config {
     fn get_name(&self) -> String {

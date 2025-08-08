@@ -21,7 +21,10 @@ impl TokenGeneratedInfo {
     /// Returns the only token in the array. Panics if the array is unexpectedly empty.
     /// This assumes `token` always has exactly one element.
     pub fn get_token(&self) -> &u32 {
-        &self.original_token.first().expect("token should contain exactly one element")
+        &self
+            .original_token
+            .first()
+            .expect("token should contain exactly one element")
     }
 
     pub fn set_text(&mut self, text: String) {

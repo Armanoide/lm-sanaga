@@ -1,14 +1,14 @@
 use crate::client::CliClient;
 use crate::error::Result;
-use std::sync::Arc;
+use crate::prompt::conversation::prompt_conversation;
+use crate::prompt::session::prompt_session;
+use crate::utils::stream_response_bytes::stream_response_bytes;
+use crate::utils::typewriter::typewriter;
 use inquire::{InquireError, Text};
 use serde::Deserialize;
 use sn_core::server::payload::generate_text_request::GenerateTextRequest;
 use sn_core::types::stream_data::{StreamData, StreamDataContent};
-use crate::prompt::conversation::prompt_conversation;
-use crate::prompt::session::prompt_session;
-use crate::utils::stream_response_bytes::{stream_response_bytes};
-use crate::utils::typewriter::typewriter;
+use std::sync::Arc;
 
 #[derive(Debug, Deserialize, Default)]
 struct Metadata {
@@ -33,12 +33,12 @@ fn handle_response_stream_data(stream_data: &StreamData, response_info: &mut Res
     match &stream_data.content {
         StreamDataContent::String(content) => {
             typewriter(&content, 5);
-        },
+        }
         StreamDataContent::TextGeneratedMetadataResponseSSE(content) => {
             response_info.metadata.conversation_id = Some(content.conversation_id);
             response_info.metadata.generation_tps = content.generation_tps;
             response_info.metadata.prompt_tps = content.prompt_tps;
-        },
+        }
         _ => {}
     }
 }
@@ -73,7 +73,7 @@ pub async fn simple_prompt(cli_client: &CliClient, model_id: Arc<str>) -> Result
             Ok(name) => name,
             Err(InquireError::OperationCanceled) => {
                 continue;
-            },
+            }
             Err(InquireError::OperationInterrupted) => {
                 println!("{}", INFO_QUIT_PROMPT); // User pressed Ctrl+C
                 continue;
@@ -90,13 +90,15 @@ pub async fn simple_prompt(cli_client: &CliClient, model_id: Arc<str>) -> Result
             break;
         }
 
-        let response = cli_client.send_prompt(&GenerateTextRequest {
-            model_id: model_id.clone(),
-            prompt,
-            stream: Some(true),
-            conversation_id: last_response_info.metadata.conversation_id,
-            session_id,
-        }).await?;
+        let response = cli_client
+            .send_prompt(&GenerateTextRequest {
+                model_id: model_id.clone(),
+                prompt,
+                stream: Some(true),
+                conversation_id: last_response_info.metadata.conversation_id,
+                session_id,
+            })
+            .await?;
 
         let mut stream = stream_response_bytes(response.bytes_stream()).await;
 
@@ -105,24 +107,21 @@ pub async fn simple_prompt(cli_client: &CliClient, model_id: Arc<str>) -> Result
                 let result_parse = serde_json::from_str::<StreamData>(&data);
                 let stream_data: StreamData = match result_parse {
                     Ok(s) => s,
-                    Err(err) =>  {
-                        println!("[ERROR]: Failed to parse stream data: {} with ({})", err, line);
+                    Err(err) => {
+                        println!(
+                            "[ERROR]: Failed to parse stream data: {} with ({})",
+                            err, line
+                        );
                         continue;
-                    },
+                    }
                 };
                 handle_response_stream_data(&stream_data, &mut last_response_info);
             }
         }
         println!(
             "\n====\nPrompt TPS: {:>8.2} tokens/sec\nGen    TPS: {:>8.2} tokens/sec",
-            last_response_info
-                .metadata
-                .prompt_tps
-                .unwrap_or(0.0),
-            last_response_info
-                .metadata
-                .generation_tps
-                .unwrap_or(0.0)
+            last_response_info.metadata.prompt_tps.unwrap_or(0.0),
+            last_response_info.metadata.generation_tps.unwrap_or(0.0)
         );
 
         // Stop the loop if an error occurred during stream processing

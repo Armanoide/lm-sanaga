@@ -21,5 +21,4 @@ impl Related<super::conversation::Entity> for Entity {
     }
 }
 
-
 impl ActiveModelBehavior for ActiveModel {}

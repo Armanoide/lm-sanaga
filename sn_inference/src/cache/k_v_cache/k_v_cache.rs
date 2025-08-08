@@ -1,14 +1,14 @@
+use crate::error::Error;
+use crate::utils::mlx::mlx_compute_lock::MLX_COMPUTE_LOCK;
 use mlx_rs::Array;
 use mlx_rs::error::Exception;
 use mlx_rs::ops::indexing::{IndexMutOp, IndexOp};
 use mlx_rs::ops::{concatenate_axis, zeros_dtype};
-use std::sync::{Arc, RwLock};
 use mlx_rs::transforms::{async_eval, eval};
 use serde::{Deserialize, Serialize};
-use tracing::error;
 use sn_core::utils::rw_lock::RwLockExt;
-use crate::error::Error;
-use crate::utils::mlx::mlx_compute_lock::MLX_COMPUTE_LOCK;
+use std::sync::{Arc, RwLock};
+use tracing::error;
 
 pub type ArcCacheItem = Arc<RwLock<KVCache>>;
 pub type ArcCacheList = Arc<RwLock<Vec<ArcCacheItem>>>;
@@ -43,18 +43,17 @@ impl KVCache {
         });
     }
 
-
     pub fn get_state(&self) -> (Array, Array) {
         if let (Some(keys), Some(values)) = (&self.keys, &self.values) {
             if keys.shape()[2] == self.offset {
                 return (keys.clone(), values.clone());
             }
-              return (
-                  keys.index((.., ..self.offset, ..)),
-                  values.index((.., ..self.offset, ..))
-              )
+            return (
+                keys.index((.., ..self.offset, ..)),
+                values.index((.., ..self.offset, ..)),
+            );
         }
-       (Array::from_int(0), Array::from_int(0))
+        (Array::from_int(0), Array::from_int(0))
     }
 
     #[allow(non_snake_case)]
@@ -200,7 +199,13 @@ pub trait CacheSize {
 impl CacheSize for Arc<RwLock<Vec<ArcCacheItem>>> {
     fn cache_size(&self) -> usize {
         self.read_lock("read_cache_size").map_or(0, |cache| {
-            cache.iter().map(|item| item.read_lock("read_item_size").map_or(0, |c| c.cache_size())).sum()
+            cache
+                .iter()
+                .map(|item| {
+                    item.read_lock("read_item_size")
+                        .map_or(0, |c| c.cache_size())
+                })
+                .sum()
         })
     }
 }

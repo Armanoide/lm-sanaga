@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use crate::error::{Error, Result};
 use crate::model::model::Model;
 use crate::model::model_kind::ModelKind;
@@ -10,23 +9,24 @@ use crossbeam::channel::Sender;
 use mlx_rs::Array;
 use mlx_rs::ops::concatenate;
 use mlx_rs::ops::indexing::{IndexOp, argmax_axis};
-use mlx_rs::transforms::{async_eval, async_eval_params, eval, eval_params};
 use mlx_rs::transforms::compile::clear_cache;
+use mlx_rs::transforms::{async_eval, async_eval_params, eval, eval_params};
+use once_cell::unsync::Lazy;
 use rayon::prelude::*;
+use rayon::prelude::*;
+use std::collections::HashSet;
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
-use tracing::{debug, error, info, warn};
-use once_cell::unsync::Lazy;
 use tokio::sync::Mutex;
-use rayon::prelude::*;
+use tracing::{debug, error, info, warn};
 
 pub type SamplerFn = Arc<dyn Fn(&Array) -> Result<Array> + Send + Sync>;
 
 type LogitsProcessor = Arc<dyn Fn(&Array, &Array) -> Result<Array> + Send + Sync>;
-use sn_core::utils::rw_lock::RwLockExt;
 use crate::cache::k_v_cache::k_v_cache::ArcCacheList;
 use crate::utils::mlx::mlx_compute_lock::MLX_COMPUTE_LOCK;
+use sn_core::utils::rw_lock::RwLockExt;
 
 pub struct TokenGeneratorOpts {
     temperature: Option<f32>,
@@ -117,10 +117,7 @@ impl TokenGenerator {
             None
         };
 
-        let mut logits = self.model_call(
-            &input_tokens_batched,
-            input_embeds_batched.as_ref()
-        )?;
+        let mut logits = self.model_call(&input_tokens_batched, input_embeds_batched.as_ref())?;
         logits = logits.index((.., -1, ..));
 
         if !self.logits_processors.is_empty() {
@@ -170,16 +167,21 @@ impl TokenGenerator {
         Ok(())
     }
 
-    fn step_prefill(&mut self, mut prompt_input: Array, input_embeddings: Option<&Array>) -> Result<(Array)>  {
+    fn step_prefill(
+        &mut self,
+        mut prompt_input: Array,
+        input_embeddings: Option<&Array>,
+    ) -> Result<(Array)> {
         let total_prompt_tokens = self.prompt.shape()[0];
         let mut prompt_processed_tokens = 0;
-        let prefill_step_size = 256/2; // 128 tokens per step
+        let prefill_step_size = 256 / 2; // 128 tokens per step
 
-        debug!("will use prefill with {} ", total_prompt_tokens - prompt_processed_tokens > prefill_step_size);
+        debug!(
+            "will use prefill with {} ",
+            total_prompt_tokens - prompt_processed_tokens > prefill_step_size
+        );
         while total_prompt_tokens - prompt_processed_tokens > prefill_step_size {
-            let prompt_chunk = prompt_input
-                .index(0..prefill_step_size)
-                .expand_dims(0)?;
+            let prompt_chunk = prompt_input.index(0..prefill_step_size).expand_dims(0)?;
             let embed_slice = if let Some(emb) = input_embeddings {
                 Some(emb.index(0..prefill_step_size).expand_dims(0)?)
             } else {
@@ -192,13 +194,16 @@ impl TokenGenerator {
             // Assume cache state is some vector of arrays
             {
                 let context = "reading cache list";
-                self.cache.read_lock(context)?.par_iter()
+                self.cache
+                    .read_lock(context)?
+                    .par_iter()
                     .for_each(|cache_item_lock| {
-                        cache_item_lock.write_lock("reading cache state").ok()
+                        cache_item_lock
+                            .write_lock("reading cache state")
+                            .ok()
                             .map(|cache_item| cache_item.eval_state());
                     })
             };
-
 
             prompt_processed_tokens += prefill_step_size;
             prompt_input = prompt_input.index(prefill_step_size..);
@@ -217,8 +222,7 @@ impl TokenGenerator {
         let prompt_input = self.step_prefill(prompt_input, input_embeddings)?;
         let (mut y, mut logprobs) = self.forward_step(&prompt_input, input_embeddings)?;
         {
-            let _guard = MLX_COMPUTE_LOCK.lock()
-                .map_err(|e| Error::MLXComputeLock)?;
+            let _guard = MLX_COMPUTE_LOCK.lock().map_err(|e| Error::MLXComputeLock)?;
             async_eval([&y, &logprobs])?;
         }
         self.prefill_duration = pre_fill_start.elapsed().as_secs_f64();
@@ -232,8 +236,7 @@ impl TokenGenerator {
                 }
                 let (next_y, next_logprobs) = self.forward_step(&y, None)?;
                 {
-                    let _guard = MLX_COMPUTE_LOCK.lock()
-                        .map_err(|e| Error::MLXComputeLock)?;
+                    let _guard = MLX_COMPUTE_LOCK.lock().map_err(|e| Error::MLXComputeLock)?;
                     async_eval([&next_y, &next_logprobs])?;
                 }
                 if n == 0 {

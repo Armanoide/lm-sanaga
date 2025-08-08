@@ -1,39 +1,39 @@
+use crate::db;
+use crate::db::entities::message::{Convert, Model};
+use crate::db::repository;
+use crate::db::repository::conversation::update_conversation_name;
+use crate::db::repository::message::{create_message, get_message_by_id};
+use crate::error::Result;
 use crate::error::{Error, ResultAPIStream};
+use crate::server::app_state::AppState;
 use crate::utils::parse_json_model_id::parse_json_model_id;
+use crate::utils::sse_response_builder::SseResponseBuilder;
 use crate::utils::tokio_bridge::TokenBridge;
 use axum::Json;
 use axum::body::Body;
 use axum::extract::State;
+use axum::extract::rejection::JsonRejection;
 use axum::response::{IntoResponse, Response};
 use crossbeam::channel::{Receiver, Sender, bounded};
 use futures::{SinkExt, StreamExt};
-use serde_json::{json, Value};
+use sea_orm::DatabaseConnection;
+use serde_json::{Value, json};
+use sn_core::server::payload::generate_text_request::GenerateTextRequest;
+use sn_core::server::payload::text_generated_metadata_response_sse::TextGeneratedMetadataResponseSSE;
+use sn_core::types::conversation::Conversation;
+use sn_core::types::message::{Message, MessageRole};
+use sn_core::types::message_stats::MessageStats;
+use sn_core::types::stream_data::StreamData;
 use sn_core::utils::rw_lock::RwLockExt;
+use sn_inference::model::model_runtime::GenerateTextResult;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::thread;
-use axum::extract::rejection::JsonRejection;
-use sea_orm::DatabaseConnection;
 use tracing::error;
-use sn_core::types::conversation::Conversation;
-use sn_core::types::message::{Message, MessageRole};
-use sn_core::server::payload::generate_text_request::GenerateTextRequest;
-use sn_core::server::payload::text_generated_metadata_response_sse::TextGeneratedMetadataResponseSSE;
-use sn_core::types::message_stats::MessageStats;
-use sn_core::types::stream_data::StreamData;
-use sn_inference::model::model_runtime::GenerateTextResult;
-use crate::db;
-use crate::db::{repository};
-use crate::db::entities::message::{Convert, Model};
-use crate::db::repository::conversation::update_conversation_name;
-use crate::db::repository::message::{create_message, get_message_by_id};
-use crate::server::app_state::AppState;
-use crate::error::Result;
-use crate::utils::sse_response_builder::SseResponseBuilder;
 
-pub async fn create_or_get_conversation (
+pub async fn create_or_get_conversation(
     db: Option<&DatabaseConnection>,
-    payload: &Json<GenerateTextRequest>
+    payload: &Json<GenerateTextRequest>,
 ) -> Result<Conversation> {
     let db = match db {
         Some(db) => db,
@@ -43,7 +43,7 @@ pub async fn create_or_get_conversation (
     let messages = repository::message::get_messages_from_payload(db, payload).await?;
     match messages {
         Some(messages) => Ok(messages.into_conversation()),
-        None => Ok(Conversation::default())
+        None => Ok(Conversation::default()),
     }
 }
 
@@ -85,14 +85,20 @@ async fn generate_title_conversation(
     payload: Json<GenerateTextRequest>,
     conversation_id: &i32,
 ) {
-    let db = if let Some(db) = &state.db  { db } else { return; };
+    let db = if let Some(db) = &state.db {
+        db
+    } else {
+        return;
+    };
 
-    let generate_text_result = (||{
+    let generate_text_result = (|| {
         let guard = state.runner.read_lock("reading runner for resume")?;
-        let conversation = Conversation::from_user_with_content(
-            format!("resume with with 4 words only: {}", payload.prompt
-            ));
-        let generate_text_result = guard.generate_text(&payload.model_id, &conversation, None, None)?;
+        let conversation = Conversation::from_user_with_content(format!(
+            "resume with with 4 words only: {}",
+            payload.prompt
+        ));
+        let generate_text_result =
+            guard.generate_text(&payload.model_id, &conversation, None, None)?;
         Ok::<_, Error>(generate_text_result)
     })();
     match generate_text_result {
@@ -114,9 +120,13 @@ async fn store_generate_text_result(
     state: Arc<AppState>,
     payload: Json<GenerateTextRequest>,
     generate_text_result: GenerateTextResult,
-    tx: Option<Arc<Sender<StreamData>>>
+    tx: Option<Arc<Sender<StreamData>>>,
 ) -> Option<db::entities::message::Model> {
-    let db = if let Some(db) = &state.db  { db } else { return None; };
+    let db = if let Some(db) = &state.db {
+        db
+    } else {
+        return None;
+    };
 
     match create_message(db, &payload, &generate_text_result).await {
         Ok(message) => {
@@ -124,14 +134,16 @@ async fn store_generate_text_result(
                 if payload.conversation_id.is_none() {
                     generate_title_conversation(state, payload, &message.conversation_id).await;
                 }
-                let _ = tx.send(StreamData::for_text_generated_metadata_sse_response(TextGeneratedMetadataResponseSSE {
-                    prompt_tps: message.prompt_tps,
-                    generation_tps: message.generation_tps,
-                    conversation_id: message.conversation_id,
-                }));
+                let _ = tx.send(StreamData::for_text_generated_metadata_sse_response(
+                    TextGeneratedMetadataResponseSSE {
+                        prompt_tps: message.prompt_tps,
+                        generation_tps: message.generation_tps,
+                        conversation_id: message.conversation_id,
+                    },
+                ));
             }
             message
-        },
+        }
         Err(err) => {
             handle_error_generate_text(&err.to_string(), tx);
             None
@@ -150,11 +162,15 @@ async fn generate_text_with_sse(
     let response = SseResponseBuilder::new(rx).build();
 
     tokio::spawn(async move {
-
         let generate_text_result = (|| {
             let guard = state.runner.read_lock("reading runner for generate_text")?;
-            let generate_text_result = guard.generate_text(&payload.model_id, &conversation, payload.session_id, Some(tx.clone()))?;
-          Ok::<_, Error>(generate_text_result)
+            let generate_text_result = guard.generate_text(
+                &payload.model_id,
+                &conversation,
+                payload.session_id,
+                Some(tx.clone()),
+            )?;
+            Ok::<_, Error>(generate_text_result)
         })();
 
         let generate_text_result = if let Err(err) = generate_text_result {
@@ -175,12 +191,15 @@ async fn generate_text_with_json(
     state: Arc<AppState>,
     payload: Json<GenerateTextRequest>,
     conversation: Conversation,
-) ->  ResultAPIStream {
+) -> ResultAPIStream {
     let generate_text_result = {
-        state.runner.read_lock("reading runner for generate_text")
+        state
+            .runner
+            .read_lock("reading runner for generate_text")
             .map_err(|e| Error::Core(e))
-            .and_then(| guard| {
-                guard.generate_text(&payload.model_id, &conversation, payload.session_id, None)
+            .and_then(|guard| {
+                guard
+                    .generate_text(&payload.model_id, &conversation, payload.session_id, None)
                     .map_err(|e| Error::Inference(e))
             })
     }?;
@@ -192,14 +211,13 @@ async fn generate_text_with_json(
             "generation_tps": message.generation_tps,
             "prompt_tps": message.prompt_tps,
             "conversation_id": message.conversation_id,
-        })).into_response())
+        }))
+        .into_response())
     } else {
-        Err(Error::FailedToGenerateText(
-            json!({
-                "error": "Failed to save generated text",
-                "reason": "Could not persist message to database or inference result"
-            })),
-        )
+        Err(Error::FailedToGenerateText(json!({
+            "error": "Failed to save generated text",
+            "reason": "Could not persist message to database or inference result"
+        })))
     }
 }
 

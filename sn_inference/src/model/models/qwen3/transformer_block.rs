@@ -1,5 +1,9 @@
+use crate::cache::k_v_cache::k_v_cache::ArcCacheItem;
+use crate::config::config_models::qwen3::Qwen3Config;
 use crate::error::{Error, Result};
 use crate::mask::mask::AttentionMask;
+use crate::model::models::qwen3::attention::AttentionQwen3;
+use crate::model::models::qwen3::mlp::MLPQwen3;
 use crate::model::weight::Tensor;
 use crate::module::Module;
 use crate::quantized::Quantize;
@@ -9,10 +13,6 @@ use mlx_rs::builder::Builder;
 use mlx_rs::module::Module as MLXModule;
 use mlx_rs::nn::{RmsNorm, RmsNormBuilder};
 use std::rc::Rc;
-use crate::cache::k_v_cache::k_v_cache::ArcCacheItem;
-use crate::config::config_models::qwen3::Qwen3Config;
-use crate::model::models::qwen3::attention::AttentionQwen3;
-use crate::model::models::qwen3::mlp::MLPQwen3;
 
 #[derive(Debug, Clone)]
 pub struct TransformerBlockQwen3 {
@@ -51,18 +51,18 @@ impl Module for TransformerBlockQwen3 {
         if let Some(layer_without_suffix) = name.splitn(4, '.').nth(3) {
             match layer_without_suffix {
                 "post_attention_layernorm.weight" => {
-                    return Ok(self.post_attention_layernorm.update_weight(&tensor.data))
+                    return Ok(self.post_attention_layernorm.update_weight(&tensor.data));
                 }
-                "input_layernorm.weight" => return Ok(self.input_layernorm.update_weight(&tensor.data)),
+                "input_layernorm.weight" => {
+                    return Ok(self.input_layernorm.update_weight(&tensor.data));
+                }
                 _ => {
                     if let Some(submodule) = layer_without_suffix.split(".").nth(0) {
                         return match submodule {
                             "mlp" => Ok(self.mlp.set_weight(name, tensor)?),
                             "self_attn" => Ok(self.self_attn.set_weight(name, tensor)?),
-                            _ => {
-                                Err(Error::UnsupportedWeight(name.to_string()))
-                            }
-                        }
+                            _ => Err(Error::UnsupportedWeight(name.to_string())),
+                        };
                     }
                 }
             }
@@ -79,7 +79,7 @@ impl TransformerBlockQwen3 {
         let input_layernorm = RmsNormBuilder {
             dimensions: qwen3_config.hidden_size,
             eps: qwen3_config.rms_norm_eps,
-        } 
+        }
         .build()
         .map_err(|e| Error::ExceptionMLX(e))?;
         let post_attention_layernorm = RmsNormBuilder {

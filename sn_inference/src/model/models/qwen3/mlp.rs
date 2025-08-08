@@ -1,3 +1,5 @@
+use crate::cache::k_v_cache::k_v_cache::ArcCacheItem;
+use crate::config::config_models::qwen3::Qwen3Config;
 use crate::error::{Error, Result};
 use crate::mask::mask::AttentionMask;
 use crate::model::weight::Tensor;
@@ -10,8 +12,6 @@ use mlx_rs::module::Module as MLXModule;
 use mlx_rs::nn::{Linear, LinearBuilder, silu};
 use mlx_rs::quantization::{MaybeQuantized, Quantizable};
 use std::rc::Rc;
-use crate::cache::k_v_cache::k_v_cache::ArcCacheItem;
-use crate::config::config_models::qwen3::Qwen3Config;
 
 #[derive(Debug, Clone)]
 pub struct MLPQwen3 {
@@ -65,10 +65,8 @@ impl Module for MLPQwen3 {
                 "gate_proj.biases" => Ok(self.gate_proj.update_biases(&tensor.data)),
                 "down_proj.biases" => Ok(self.down_proj.update_biases(&tensor.data)),
                 "up_proj.biases" => Ok(self.up_proj.update_biases(&tensor.data)),
-                _ => {
-                    Err(Error::UnsupportedWeight(name.to_string()))
-                }
-            }
+                _ => Err(Error::UnsupportedWeight(name.to_string())),
+            };
         }
         Err(Error::UnsupportedWeight(name.to_string()))
     }

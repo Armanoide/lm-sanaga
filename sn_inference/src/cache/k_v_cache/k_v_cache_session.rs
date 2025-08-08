@@ -6,6 +6,4 @@ pub struct KvCacheSession {
     pub session_id: i32,
 }
 
-impl KvCacheSession {
-
-}
+impl KvCacheSession {}

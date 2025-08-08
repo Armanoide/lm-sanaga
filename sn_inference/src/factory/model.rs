@@ -3,9 +3,9 @@ use crate::config::config_model::ConfigModel;
 use crate::error::Result;
 use crate::model::model_kind::ModelKind;
 use crate::model::models::llama::llama::ModelLLama;
+use crate::model::models::qwen3::qwen3::ModelQwen3;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
-use crate::model::models::qwen3::qwen3::ModelQwen3;
 //use crate::models::model_mistral::ModelMistral;
 
 pub fn create_model_instance(config: Rc<Config>) -> Result<Arc<RwLock<ModelKind>>> {

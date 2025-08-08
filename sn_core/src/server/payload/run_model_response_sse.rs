@@ -7,4 +7,3 @@ pub struct RunModelResponseSSE {
     pub tensor_index: usize,
     pub total_tensors: usize,
 }
-

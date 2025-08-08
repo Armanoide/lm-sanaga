@@ -1,3 +1,4 @@
+use crate::cache::k_v_cache::k_v_cache::{ArcCacheList, CacheSize};
 use crate::error::{Error, Result};
 use crate::model::model_kind::ModelKind;
 use crate::token::token_generated_info::TokenGeneratedInfo;
@@ -5,6 +6,8 @@ use crate::token::token_generator::TokenGenerator;
 use crate::tokenizer::tokenizer::Tokenizer;
 use crossbeam::channel::{Receiver, Sender, bounded};
 use rayon::prelude::*;
+use sn_core::types::message_stats::{MessageStats, MessageStatsBuilder};
+use sn_core::types::stream_data::StreamData;
 use sn_core::utils::rw_lock::RwLockExt;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -12,9 +15,6 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tracing::{debug, error};
-use sn_core::types::message_stats::{MessageStats, MessageStatsBuilder};
-use sn_core::types::stream_data::StreamData;
-use crate::cache::k_v_cache::k_v_cache::{ArcCacheList, CacheSize};
 
 pub type PromptStreamCallback = Arc<Sender<StreamData>>;
 pub struct TokenStreamManager {
@@ -102,12 +102,18 @@ impl TokenStreamManager {
                 stop = eot_ids.contains(gti.get_token());
                 if !has_header_start && header_token_ids.contains(gti.get_token()) {
                     has_header_start = true;
-                } else if !has_header_end && has_header_start && header_token_ids.contains(gti.get_token()) {
+                } else if !has_header_end
+                    && has_header_start
+                    && header_token_ids.contains(gti.get_token())
+                {
                     has_header_end = true;
                 }
 
-                self.tokenizer
-                    .decode_response_from_generated_token_info(&mut gti, has_header_start, has_header_end);
+                self.tokenizer.decode_response_from_generated_token_info(
+                    &mut gti,
+                    has_header_start,
+                    has_header_end,
+                );
 
                 if let Some(cb) = &callback {
                     // Cal the callback with the decoded response
@@ -129,7 +135,6 @@ impl TokenStreamManager {
         }
         println!("cache size: {}", cache.cache_size());
         Ok(self.get_text())
-
     }
 
     pub fn get_average_stats(&self) -> Result<Option<(MessageStats)>> {

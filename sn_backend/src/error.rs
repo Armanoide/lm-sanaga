@@ -1,5 +1,5 @@
-use axum::extract::rejection::{JsonRejection, QueryRejection};
 use axum::Json;
+use axum::extract::rejection::{JsonRejection, QueryRejection};
 use axum::response::{IntoResponse, Response};
 use serde_json;
 use serde_json::{Value, json};
@@ -12,7 +12,6 @@ pub type Result<T> = std::result::Result<T, crate::error::Error>;
 
 #[derive(Debug, Error)]
 pub enum Error {
-
     #[error(transparent)]
     Core(#[from] sn_core::error::Error),
 

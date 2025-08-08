@@ -1,10 +1,10 @@
+use crate::cache::k_v_cache::k_v_cache::ArcCacheItem;
 use crate::error::Result;
 use crate::mask::mask::AttentionMask;
 use crate::model::weight::Tensor;
 use crate::quantized::Quantize;
 use mlx_rs::Array;
 use std::any::Any;
-use crate::cache::k_v_cache::k_v_cache::ArcCacheItem;
 
 pub trait Module: Any + Quantize {
     fn forward(

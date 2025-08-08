@@ -2,8 +2,8 @@ use crate::error::Error;
 use minijinja::Environment;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use std::collections::HashMap;
 use sn_core::types::conversation::Conversation;
+use std::collections::HashMap;
 
 pub struct Document {
     pub title: String,
@@ -74,7 +74,10 @@ pub fn render_chat_template(
     }
 
     if let Some(add_generation_prompt) = add_generation_prompt {
-        context.insert("add_generation_prompt", json!({"add_generation_prompt": add_generation_prompt}));
+        context.insert(
+            "add_generation_prompt",
+            json!({"add_generation_prompt": add_generation_prompt}),
+        );
     }
 
     let rendered = template.render(context)?;

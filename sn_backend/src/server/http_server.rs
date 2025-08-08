@@ -1,21 +1,21 @@
-use std::env;
-use axum::http::StatusCode;
-use sn_inference::runner::Runner;
-use std::sync::{Arc, RwLock};
-use axum::response::Response;
-use tower_http::trace::{
-    DefaultMakeSpan, DefaultOnFailure, DefaultOnRequest, DefaultOnResponse, TraceLayer,
-};
-use tracing::{error, info, Level};
-use tracing::log::warn;
 use crate::db::connection::get_connection;
 use crate::error::{Error, Result};
 use crate::server::app_state::AppState;
 use crate::server::{conversation, model, session, text};
+use axum::http::StatusCode;
+use axum::response::Response;
+use sn_inference::runner::Runner;
+use std::env;
+use std::sync::{Arc, RwLock};
+use tower_http::trace::{
+    DefaultMakeSpan, DefaultOnFailure, DefaultOnRequest, DefaultOnResponse, TraceLayer,
+};
+use tracing::log::warn;
+use tracing::{Level, error, info};
 
 /// Default server configuration constants.
-const DEFAULT_SERVER_HOST: &str ="127.0.0.1";
-const DEFAULT_SERVER_PORT: &str ="3000";
+const DEFAULT_SERVER_HOST: &str = "127.0.0.1";
+const DEFAULT_SERVER_PORT: &str = "3000";
 const DEFAULT_SERVER_PROTOCOL: &str = "http";
 
 /// Simple fallback handler for unmatched routes.
@@ -71,7 +71,7 @@ pub async fn http_server(runner: Arc<RwLock<Runner>>) -> Result<()> {
         Ok(listener) => {
             info!("Starting HTTP server on {protocol}://{host}:{port}");
             listener
-        },
+        }
         Err(err) => {
             error!("Failed to bind to {host}:{port}. {}", err);
             return Err(Error::from(err));

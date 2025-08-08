@@ -1,10 +1,10 @@
 use sn_core::logger::init_tracing;
 use sn_inference::runner::Runner;
 use std::sync::Arc;
-mod error;
-mod utils;
 mod db;
+mod error;
 mod server;
+mod utils;
 
 use std::sync::RwLock;
 fn main() {

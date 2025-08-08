@@ -1,11 +1,15 @@
+use crate::cache::k_v_cache::k_v_cache::ArcCacheItem;
 use crate::config::config_model::ConfigModel;
+use crate::config::config_models::qwen3::Qwen3Config;
 use crate::error::{Error, Result};
-use crate::factory::rope::{initialize_rope, RopeModelType};
+use crate::factory::rope::{RopeModelType, initialize_rope};
 use crate::mask::mask::AttentionMask;
+use crate::model::models::qwen3::rope::RopeQwen3;
 use crate::model::weight::Tensor;
 use crate::module::Module;
 use crate::quantized::Quantize;
 use crate::utils::maybe_quantized::MaybeQuantizedLinear;
+use crate::utils::rms_norm::NormExt;
 use crate::utils::scaled_dot_product_attention::scaled_dot_product_attention;
 use mlx_rs::Array;
 use mlx_rs::builder::Builder;
@@ -14,10 +18,6 @@ use mlx_rs::nn::{Linear, LinearBuilder, RmsNorm, RmsNormBuilder};
 use mlx_rs::quantization::{MaybeQuantized, Quantizable};
 use sn_core::utils::rw_lock::{RwLockExt, RwLockExtOpt};
 use std::rc::Rc;
-use crate::cache::k_v_cache::k_v_cache::ArcCacheItem;
-use crate::config::config_models::qwen3::Qwen3Config;
-use crate::model::models::qwen3::rope::RopeQwen3;
-use crate::utils::rms_norm::NormExt;
 
 #[derive(Clone, Debug)]
 pub struct AttentionQwen3 {
@@ -62,12 +62,16 @@ impl Module for AttentionQwen3 {
         let mut values = self.v_proj.forward(x)?;
 
         // Prepare the queries, keys and values for the attention computation
-        queries = self.q_norm.forward(&queries
-            .reshape(&[b, l, self.n_heads, -1])?
-            .transpose_axes(&[0, 2, 1, 3])?)?;
-        keys = self.k_norm.forward(&keys
-            .reshape(&[b, l, self.n_kv_heads, -1])?
-            .transpose_axes(&[0, 2, 1, 3])?)?;
+        queries = self.q_norm.forward(
+            &queries
+                .reshape(&[b, l, self.n_heads, -1])?
+                .transpose_axes(&[0, 2, 1, 3])?,
+        )?;
+        keys = self.k_norm.forward(
+            &keys
+                .reshape(&[b, l, self.n_kv_heads, -1])?
+                .transpose_axes(&[0, 2, 1, 3])?,
+        )?;
         values = values
             .reshape(&[b, l, self.n_kv_heads, -1])?
             .transpose_axes(&[0, 2, 1, 3])?;
@@ -191,21 +195,23 @@ impl AttentionQwen3 {
         );
 
         let q_norm = RmsNormBuilder {
-                dimensions: head_dim,
-                eps: qwen3_config.rms_norm_eps,
-        }.build()?;
+            dimensions: head_dim,
+            eps: qwen3_config.rms_norm_eps,
+        }
+        .build()?;
 
         let k_norm = RmsNormBuilder {
-                dimensions: head_dim,
-                eps: qwen3_config.rms_norm_eps,
-        }.build()?;
+            dimensions: head_dim,
+            eps: qwen3_config.rms_norm_eps,
+        }
+        .build()?;
 
         let rope_model = initialize_rope(
             head_dim,
             qwen3_config.rope_theta,
             false,
             ConfigModel::Qwen3(qwen3_config),
-        )? ;
+        )?;
 
         let rope = match rope_model {
             RopeModelType::Qwen3(rope) => rope,

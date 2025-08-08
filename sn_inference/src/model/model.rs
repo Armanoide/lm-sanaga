@@ -1,9 +1,9 @@
+use crate::cache::k_v_cache::k_v_cache::ArcCacheList;
 use crate::error::Result;
 use crate::mask::mask::AttentionMask;
 use crate::model::weight::Weight;
 use crate::module::Module;
 use mlx_rs::Array;
-use crate::cache::k_v_cache::k_v_cache::ArcCacheList;
 
 pub trait Model: Module {
     fn sanitize(&mut self, weight: &mut Weight);

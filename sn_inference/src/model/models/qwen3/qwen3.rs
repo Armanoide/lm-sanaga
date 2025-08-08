@@ -1,7 +1,10 @@
+use crate::cache::k_v_cache::k_v_cache::{ArcCacheItem, ArcCacheList, KVCache};
+use crate::config::config_models::qwen3::Qwen3Config;
 use crate::error::{Error, Result};
 use crate::factory::mask::create_attention_mask;
 use crate::mask::mask::AttentionMask;
 use crate::model::model::Model;
+use crate::model::models::qwen3::transformer_block::TransformerBlockQwen3;
 use crate::model::weight::{Tensor, Weight};
 use crate::module::Module;
 use crate::quantized::Quantize;
@@ -17,9 +20,6 @@ use rayon::prelude::*;
 use sn_core::utils::rw_lock::RwLockExt;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
-use crate::cache::k_v_cache::k_v_cache::{ArcCacheItem, ArcCacheList, KVCache};
-use crate::config::config_models::qwen3::Qwen3Config;
-use crate::model::models::qwen3::transformer_block::TransformerBlockQwen3;
 
 #[derive(Debug)]
 pub struct ModelQwen3 {
@@ -69,9 +69,15 @@ impl Module for ModelQwen3 {
             //"lm_head.weight" => return Ok(self.lm_head.update_weight(&tensor.data)),
             //"lm_head.scales" => return Ok(self.lm_head.update_scales(&tensor.data)),
             //"lm_head.biases" => return Ok(self.lm_head.update_biases(&tensor.data)),
-            "model.embed_tokens.weight" => return Ok(self.embed_tokens.update_weight(&tensor.data)),
-            "model.embed_tokens.scales" => return Ok(self.embed_tokens.update_scales(&tensor.data)),
-            "model.embed_tokens.biases" => return Ok(self.embed_tokens.update_biases(&tensor.data)),
+            "model.embed_tokens.weight" => {
+                return Ok(self.embed_tokens.update_weight(&tensor.data));
+            }
+            "model.embed_tokens.scales" => {
+                return Ok(self.embed_tokens.update_scales(&tensor.data));
+            }
+            "model.embed_tokens.biases" => {
+                return Ok(self.embed_tokens.update_biases(&tensor.data));
+            }
             "model.norm.weight" => return Ok(self.norm.update_weight(&tensor.data)),
             _ => {
                 if name.starts_with("model.layers.") {
@@ -165,14 +171,15 @@ impl ModelQwen3 {
             dimensions: qwen3_config.hidden_size,
             eps: qwen3_config.rms_norm_eps,
         }
-            .build()?;
+        .build()?;
 
         let lm_head = MaybeQuantized::new(
             LinearBuilder {
                 input_dims: qwen3_config.hidden_size,
                 output_dims: qwen3_config.vocab_size,
                 bias: false,
-            }.build()?,
+            }
+            .build()?,
         );
 
         let embed_tokens = MaybeQuantized::new(Embedding::new(

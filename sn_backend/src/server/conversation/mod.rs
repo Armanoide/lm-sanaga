@@ -1,2 +1,2 @@
-pub(crate) mod route;
 pub(crate) mod controller;
+pub(crate) mod route;

@@ -32,11 +32,7 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(pk_auto(Conversation::Id))
                     .col(string_null(Conversation::Name))
-                    .col(
-                        ColumnDef::new(Conversation::SessionId)
-                            .integer()
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new(Conversation::SessionId).integer().not_null())
                     .col(
                         ColumnDef::new(Conversation::CreatedAt)
                             .timestamp()
@@ -66,11 +62,7 @@ impl MigrationTrait for Migration {
                     .col(double_null(Message::GenerationDuration))
                     .col(double_null(Message::PromptTps))
                     .col(double_null(Message::GenerationTps))
-                    .col(
-                        ColumnDef::new(Message::ConversationId)
-                            .integer()
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new(Message::ConversationId).integer().not_null())
                     .col(
                         ColumnDef::new(Message::CreatedAt)
                             .timestamp()

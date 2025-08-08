@@ -1,24 +1,24 @@
 use crate::error::{Error, ResultAPI, ResultAPIStream};
+use crate::server::app_state::AppState;
 use crate::utils::parse_json_model_id::parse_json_model_id;
+use crate::utils::sse_response_builder::SseResponseBuilder;
+use crate::utils::tokio_bridge::TokenBridge;
 use axum::Json;
+use axum::body::Body;
 use axum::extract::State;
+use axum::extract::rejection::JsonRejection;
+use axum::response::{IntoResponse, Response};
+use crossbeam::channel::{Receiver, Sender, bounded};
+use futures::StreamExt;
 use serde_json::Value;
 use serde_json::json;
+use sn_core::server::payload::run_model_metadata_response_sse::RunModelMetadataResponseSSE;
+use sn_core::server::payload::run_model_request::RunModelRequest;
+use sn_core::types::stream_data::StreamData;
 use sn_core::utils::rw_lock::RwLockExt;
 use std::collections::HashMap;
 use std::sync::Arc;
-use axum::body::Body;
-use axum::extract::rejection::JsonRejection;
-use axum::response::{IntoResponse, Response};
-use crossbeam::channel::{bounded, Receiver, Sender};
 use tracing::{error, info};
-use sn_core::server::payload::run_model_request::RunModelRequest;
-use sn_core::types::stream_data::StreamData;
-use crate::server::app_state::AppState;
-use crate::utils::tokio_bridge::TokenBridge;
-use futures::StreamExt;
-use sn_core::server::payload::run_model_metadata_response_sse::RunModelMetadataResponseSSE;
-use crate::utils::sse_response_builder::SseResponseBuilder;
 
 fn handle_error_run_model(err: &String, tx_err: Option<Arc<Sender<StreamData>>>) {
     error!("{}", err);
@@ -70,7 +70,10 @@ pub async fn get_models_running(State(state): State<Arc<AppState>>) -> ResultAPI
     Ok(Json(json!(models)))
 }
 
-pub async fn run_model_with_sse(state: Arc<AppState>, payload: Json<RunModelRequest>) -> ResultAPIStream {
+pub async fn run_model_with_sse(
+    state: Arc<AppState>,
+    payload: Json<RunModelRequest>,
+) -> ResultAPIStream {
     let (tx, rx): (Sender<StreamData>, Receiver<StreamData>) = bounded(100);
     let tx = Arc::new(tx);
 
@@ -83,9 +86,11 @@ pub async fn run_model_with_sse(state: Arc<AppState>, payload: Json<RunModelRequ
         })();
         match model_id {
             Ok(model_id) => {
-                let _ = tx.send(StreamData::for_metadata_text_generated_sse_response(RunModelMetadataResponseSSE {
-                    model_id: Arc::from(model_id.as_str()),
-                }));
+                let _ = tx.send(StreamData::for_metadata_text_generated_sse_response(
+                    RunModelMetadataResponseSSE {
+                        model_id: Arc::from(model_id.as_str()),
+                    },
+                ));
             }
             Err(e) => {
                 handle_error_run_model(&e.to_string(), Some(tx));
@@ -93,18 +98,24 @@ pub async fn run_model_with_sse(state: Arc<AppState>, payload: Json<RunModelRequ
         }
     });
     Ok(response?)
-
 }
 
-pub async fn run_model_with_json(state: Arc<AppState>, payload: Json<RunModelRequest>) -> ResultAPIStream {
+pub async fn run_model_with_json(
+    state: Arc<AppState>,
+    payload: Json<RunModelRequest>,
+) -> ResultAPIStream {
     let model_id = {
         let context = "launching model";
-        state.runner.write_lock(context)?.load_model_name(&payload.model_name, None)?
+        state
+            .runner
+            .write_lock(context)?
+            .load_model_name(&payload.model_name, None)?
     };
 
     Ok(Json(json!({
-            "id": model_id,
-        })).into_response())
+        "id": model_id,
+    }))
+    .into_response())
 }
 
 /// Handles the `/run_model` endpoint, allowing clients to run a model either with
@@ -132,7 +143,7 @@ pub async fn run_model(
     State(state): State<Arc<AppState>>,
     payload: std::result::Result<Json<RunModelRequest>, JsonRejection>,
 ) -> ResultAPIStream {
-    let payload = payload.map_err(|e|Error::ModelNameRequired)?;
+    let payload = payload.map_err(|e| Error::ModelNameRequired)?;
 
     if payload.stream.unwrap_or(false) {
         Ok(run_model_with_sse(state, payload).await?)

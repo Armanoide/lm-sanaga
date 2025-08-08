@@ -1,16 +1,16 @@
-use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
-use tracing::error;
 use crate::server::payload::run_model_metadata_response_sse::RunModelMetadataResponseSSE;
-use crate::server::payload::text_generated_metadata_response_sse::TextGeneratedMetadataResponseSSE;
 use crate::server::payload::run_model_response_sse::RunModelResponseSSE;
+use crate::server::payload::text_generated_metadata_response_sse::TextGeneratedMetadataResponseSSE;
+use serde::{Deserialize, Serialize};
+use serde_json::{Value, json};
+use tracing::error;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "stream_type", content = "data")]
 pub enum StreamDataContent {
     String(String),
     RunModelResponseSSE(RunModelResponseSSE),
     TextGeneratedMetadataResponseSSE(TextGeneratedMetadataResponseSSE),
-    RunModelMetadataResponseSSE(RunModelMetadataResponseSSE)
+    RunModelMetadataResponseSSE(RunModelMetadataResponseSSE),
 }
 
 impl Default for StreamDataContent {
@@ -27,10 +27,7 @@ pub struct StreamData {
 
 impl StreamData {
     pub fn new(content: StreamDataContent, error: String) -> Self {
-        StreamData {
-            content,
-            error,
-        }
+        StreamData { content, error }
     }
 
     pub fn for_stream_error(error: String) -> Self {
@@ -53,7 +50,9 @@ impl StreamData {
             ..Default::default()
         }
     }
-    pub fn for_text_generated_metadata_sse_response(content: TextGeneratedMetadataResponseSSE) -> Self {
+    pub fn for_text_generated_metadata_sse_response(
+        content: TextGeneratedMetadataResponseSSE,
+    ) -> Self {
         StreamData {
             content: StreamDataContent::TextGeneratedMetadataResponseSSE(content),
             ..Default::default()

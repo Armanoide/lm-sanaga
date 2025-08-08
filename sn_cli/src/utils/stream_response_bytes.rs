@@ -54,7 +54,7 @@ pub async fn stream_response_bytes(
 }
 
 #[cfg(test)]
-use futures_util::{stream};
+use futures_util::stream;
 #[tokio::test]
 
 async fn test_stream_response_bytes() {

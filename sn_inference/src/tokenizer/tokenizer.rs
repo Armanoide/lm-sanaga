@@ -1,15 +1,15 @@
-use std::collections::HashSet;
 use crate::chat_template::chat_template::render_chat_template;
 use crate::config::config::Config;
+use crate::config::config_model::ConfigModel;
 use crate::error::{Error, Result};
 use crate::token::token_generated_info::TokenGeneratedInfo;
 use minijinja::Environment;
 use rayon::prelude::*;
+use sn_core::types::conversation::Conversation;
+use std::collections::HashSet;
 use std::rc::Rc;
 use tokenizers::tokenizer::Tokenizer as HugTokenizer;
 use tracing::debug;
-use sn_core::types::conversation::Conversation;
-use crate::config::config_model::ConfigModel;
 
 #[derive(Debug)]
 pub struct Tokenizer {
@@ -38,14 +38,20 @@ impl Tokenizer {
         let chat_template_name = "chat";
         let mut conversations = conversations.clone();
 
-        {// remove think
+        {
+            // remove think
             // from template
-            chat_template = chat_template.replace("message.content.split('</think>')[-1].lstrip('\\n')", "message.content");
+            chat_template = chat_template.replace(
+                "message.content.split('</think>')[-1].lstrip('\\n')",
+                "message.content",
+            );
             println!("chat_template: {}", chat_template);
-             conversations.messages.iter_mut().for_each(|m| m.remove_think());
+            conversations
+                .messages
+                .iter_mut()
+                .for_each(|m| m.remove_think());
         }
-            println!("chat_template2: {}", chat_template);
-
+        println!("chat_template2: {}", chat_template);
 
         env.add_template(chat_template_name, chat_template.as_str())?;
         render_chat_template(
@@ -62,12 +68,10 @@ impl Tokenizer {
 
     pub fn encode_prompt(&self, messages: Vec<String>) -> Result<Vec<u32>> {
         match self.tool.encode_batch(messages, true) {
-            Ok(encoding) => Ok(
-                encoding
-                    .par_iter()
-                    .flat_map(|e| e.get_ids().to_owned())
-                    .collect()
-            ),
+            Ok(encoding) => Ok(encoding
+                .par_iter()
+                .flat_map(|e| e.get_ids().to_owned())
+                .collect()),
             Err(e) => Err(Error::EncodingProcessingError(e)),
         }
     }
@@ -108,12 +112,12 @@ impl Tokenizer {
 
     pub fn eot_ids(&self) -> HashSet<u32> {
         match self.config.model.as_ref() {
-            ConfigModel::LLaMA(config) => {
-                config.eos_token_id.iter().map(|i| i.clone() as u32).collect()
-            }
-            ConfigModel::Qwen3(config) => {
-                HashSet::from([config.eos_token_id as u32])
-            }
+            ConfigModel::LLaMA(config) => config
+                .eos_token_id
+                .iter()
+                .map(|i| i.clone() as u32)
+                .collect(),
+            ConfigModel::Qwen3(config) => HashSet::from([config.eos_token_id as u32]),
         }
     }
 }

@@ -19,12 +19,8 @@ pub trait MaybeQuantizedEmbedding {
 impl MaybeQuantizedEmbedding for MaybeQuantized<Embedding> {
     fn as_linear(&mut self, x: &Array) -> Result<Array, Exception> {
         match self {
-            MaybeQuantized::Quantized(q) => {
-                q.as_linear(x)
-            }
-            MaybeQuantized::Original(o) => {
-                o.as_linear(x)
-            }
+            MaybeQuantized::Quantized(q) => q.as_linear(x),
+            MaybeQuantized::Original(o) => o.as_linear(x),
         }
     }
 

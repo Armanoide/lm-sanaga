@@ -1,11 +1,11 @@
+use crate::db::entities;
+use crate::db::entities::session as Session;
+use crate::error::Result;
 use axum::Json;
+use sea_orm::ColumnTrait;
+use sea_orm::QueryFilter;
 use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait};
 use sn_core::server::payload::create_session_request::CreateSessionRequest;
-use crate::db::entities;
-use crate::error::Result;
-use crate::db::entities::session as Session;
-use sea_orm::QueryFilter;
-use sea_orm::ColumnTrait;
 
 /// Creates a new session with the given name, or returns the existing one if it already exists.
 ///
@@ -18,15 +18,16 @@ use sea_orm::ColumnTrait;
 /// * `Err` - If a database error occurs.
 pub async fn create_session(
     db: &DatabaseConnection,
-    payload: Json<CreateSessionRequest>
+    payload: Json<CreateSessionRequest>,
 ) -> Result<(entities::session::Model)> {
-    let CreateSessionRequest {  name } = payload.0;
+    let CreateSessionRequest { name } = payload.0;
 
     if let Some(session) = Session::Entity::find()
         .filter(Session::Column::Name.eq(name.clone()))
         .one(db)
-        .await? {
-        return Ok(session)
+        .await?
+    {
+        return Ok(session);
     }
 
     let new_session = Session::ActiveModel {
@@ -48,7 +49,7 @@ pub async fn create_session(
 /// * `Err` - If a database error occurs.
 pub async fn get_session(
     db: &DatabaseConnection,
-    session_id: i32
+    session_id: i32,
 ) -> Result<Option<entities::session::Model>> {
     let session = Session::Entity::find()
         .filter(Session::Column::Id.eq(session_id))

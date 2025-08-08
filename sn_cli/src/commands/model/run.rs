@@ -1,11 +1,11 @@
 use crate::client::CliClient;
 use crate::error::{Error, Result};
 use crate::prompt::prompt::simple_prompt;
-use std::sync::Arc;
+use crate::utils::stream_response_bytes::stream_response_bytes;
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use sn_core::server::payload::run_model_request::RunModelRequest;
 use sn_core::types::stream_data::{StreamData, StreamDataContent};
-use crate::utils::stream_response_bytes::stream_response_bytes;
-use indicatif::{ProgressBar, ProgressStyle, MultiProgress};
+use std::sync::Arc;
 
 pub async fn handle(cli_client: &CliClient, model_name: Option<String>) -> Result<()> {
     if let Some(model_name) = model_name {
@@ -13,7 +13,10 @@ pub async fn handle(cli_client: &CliClient, model_name: Option<String>) -> Resul
         let mut pb: Option<ProgressBar> = None;
 
         let response = cli_client
-            .run_model(&RunModelRequest { model_name: model_name.clone(), stream: Some(true) })
+            .run_model(&RunModelRequest {
+                model_name: model_name.clone(),
+                stream: Some(true),
+            })
             .await
             .map_err(|e| Error::FailedToRunModel(model_name.clone(), e.to_string()))?;
 
@@ -24,10 +27,13 @@ pub async fn handle(cli_client: &CliClient, model_name: Option<String>) -> Resul
                 let result_parse = serde_json::from_str::<StreamData>(&data);
                 let stream_data: StreamData = match result_parse {
                     Ok(s) => s,
-                    Err(err) =>  {
-                        println!("[ERROR]: Failed to parse stream data: {} with ({})", err, line);
+                    Err(err) => {
+                        println!(
+                            "[ERROR]: Failed to parse stream data: {} with ({})",
+                            err, line
+                        );
                         continue;
-                    },
+                    }
                 };
                 match stream_data.content {
                     StreamDataContent::RunModelMetadataResponseSSE(data) => {
@@ -48,7 +54,7 @@ pub async fn handle(cli_client: &CliClient, model_name: Option<String>) -> Resul
                         if let Some(pb) = &pb {
                             pb.set_position(data.tensor_index as u64);
                         }
-                    },
+                    }
                     _ => {}
                 }
             }

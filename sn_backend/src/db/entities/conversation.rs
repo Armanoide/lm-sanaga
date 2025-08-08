@@ -1,8 +1,8 @@
 use rayon::iter::IntoParallelRefIterator;
+use rayon::iter::*;
 use sea_orm::entity::prelude::*;
 use sea_orm::sqlx::types::chrono::NaiveDateTime;
 use serde::Serialize;
-use rayon::iter::*;
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize)]
 #[sea_orm(table_name = "conversation")]
 pub struct Model {
@@ -14,9 +14,13 @@ pub struct Model {
 }
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
-    #[sea_orm(has_many="super::message::Entity")]
+    #[sea_orm(has_many = "super::message::Entity")]
     Messages,
-    #[sea_orm(belongs_to="super::session::Entity", from = "Column::SessionId", to = "super::session::Column::Id")]
+    #[sea_orm(
+        belongs_to = "super::session::Entity",
+        from = "Column::SessionId",
+        to = "super::session::Column::Id"
+    )]
     Session,
 }
 
@@ -39,11 +43,13 @@ pub trait Convert {
 }
 
 impl Convert for Vec<crate::db::entities::conversation::Model> {
-    fn into_conversations(self) -> Vec<sn_core::types::conversation::Conversation>{
-        self.par_iter().map(|c| sn_core::types::conversation::Conversation {
-            name: c.name.clone(),
-            id: Some(c.id),
-            messages: vec![],
-        }).collect()
+    fn into_conversations(self) -> Vec<sn_core::types::conversation::Conversation> {
+        self.par_iter()
+            .map(|c| sn_core::types::conversation::Conversation {
+                name: c.name.clone(),
+                id: Some(c.id),
+                messages: vec![],
+            })
+            .collect()
     }
 }

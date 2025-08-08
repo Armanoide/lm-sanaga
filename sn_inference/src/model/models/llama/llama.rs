@@ -1,3 +1,4 @@
+use crate::cache::k_v_cache::k_v_cache::{ArcCacheItem, ArcCacheList, KVCache};
 use crate::config::config_models::llama::LLaMAConfig;
 use crate::error::{Error, Result};
 use crate::factory::mask::create_attention_mask;
@@ -20,7 +21,6 @@ use rayon::prelude::*;
 use sn_core::utils::rw_lock::RwLockExt;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
-use crate::cache::k_v_cache::k_v_cache::{ArcCacheItem, ArcCacheList, KVCache};
 
 #[derive(Debug)]
 pub struct ModelLLama {

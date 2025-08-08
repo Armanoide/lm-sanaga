@@ -1,6 +1,6 @@
+use sea_orm::DatabaseConnection;
 use sn_inference::runner::Runner;
 use std::sync::{Arc, RwLock};
-use sea_orm::DatabaseConnection;
 
 #[derive(Clone, Debug)]
 pub struct AppState {

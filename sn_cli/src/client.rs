@@ -48,7 +48,10 @@ impl CliClient {
     }
 
     pub async fn list_conversation(&self, session_id: &i32) -> Result<String> {
-        let url = format!("{}/api/v1/sessions/{}/conversations", self.base_url, session_id);
+        let url = format!(
+            "{}/api/v1/sessions/{}/conversations",
+            self.base_url, session_id
+        );
         let result = self.client.get(&url).send().await;
         Ok(self.handle_response(result).await?)
     }

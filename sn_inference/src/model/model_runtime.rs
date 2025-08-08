@@ -1,3 +1,4 @@
+use crate::cache::k_v_cache::k_v_cache::ArcCacheList;
 use crate::config::config::Config;
 use crate::config::config_model::{ConfigModel, ConfigModelCommon};
 use crate::error::{Error, Result};
@@ -9,14 +10,13 @@ use crate::quantized::Quantize;
 use crate::token::token_stream_manager::{PromptStreamCallback, TokenStreamManager};
 use crate::tokenizer::tokenizer::Tokenizer;
 use serde::{Deserialize, Serialize};
+use sn_core::types::conversation::Conversation;
+use sn_core::types::message_stats::MessageStats;
 use sn_core::utils::rw_lock::RwLockExt;
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 use walkdir::WalkDir;
-use sn_core::types::conversation::Conversation;
-use sn_core::types::message_stats::MessageStats;
-use crate::cache::k_v_cache::k_v_cache::ArcCacheList;
 
 pub type GenerateTextResult = (String, Option<MessageStats>);
 
@@ -38,7 +38,7 @@ impl ModelRuntime {
     pub fn load_with_path(
         root_path: &str,
         id: &String,
-        callback: Option<PromptStreamCallback>
+        callback: Option<PromptStreamCallback>,
     ) -> Result<ModelRuntime> {
         let path = Path::new(&root_path);
         if !path.exists() {
@@ -89,18 +89,27 @@ impl ModelRuntime {
     }
 
     pub fn routine_model(&mut self) -> Result<()> {
-        let model = self.model.as_ref()
+        let model = self
+            .model
+            .as_ref()
             .ok_or(Error::RoutineMissingModel(self.name.clone()))?;
-        let weight = self.weight.as_mut()
+        let weight = self
+            .weight
+            .as_mut()
             .ok_or(Error::RoutineMissingWeight(self.name.clone()))?;
 
         model.write_lock("reading_model:sanitize")?.sanitize(weight);
-        if model.read_lock("routine_model:supports_quantization")?.supports_quantization() {
+        if model
+            .read_lock("routine_model:supports_quantization")?
+            .supports_quantization()
+        {
             // Passing 0,0 as no effect the model, because the model will automatically
             // quantize compute from his config file.
             model.write_lock("routine_model")?.quantize(0, 0)?;
         }
-        model.write_lock("routine_model:load_weights")?.load_weights(weight)?;
+        model
+            .write_lock("routine_model:load_weights")?
+            .load_weights(weight)?;
         Ok(())
     }
 
@@ -137,4 +146,3 @@ impl ModelRuntime {
         }
     }
 }
-

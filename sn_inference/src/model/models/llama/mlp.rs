@@ -1,3 +1,4 @@
+use crate::cache::k_v_cache::k_v_cache::ArcCacheItem;
 use crate::config::config_models::llama::LLaMAConfig;
 use crate::error::{Error, Result};
 use crate::mask::mask::AttentionMask;
@@ -11,7 +12,6 @@ use mlx_rs::module::Module as MLXModule;
 use mlx_rs::nn::{Linear, LinearBuilder, silu};
 use mlx_rs::quantization::{MaybeQuantized, Quantizable};
 use std::rc::Rc;
-use crate::cache::k_v_cache::k_v_cache::ArcCacheItem;
 
 #[derive(Debug, Clone)]
 pub struct MLPLlama {

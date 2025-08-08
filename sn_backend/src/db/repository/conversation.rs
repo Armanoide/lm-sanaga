@@ -1,8 +1,8 @@
-use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, ModelTrait, QueryOrder, Set};
 use crate::db;
-use crate::error::{Result, Error};
-use sea_orm::QueryFilter;
+use crate::error::{Error, Result};
 use sea_orm::ColumnTrait;
+use sea_orm::QueryFilter;
+use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, ModelTrait, QueryOrder, Set};
 
 /// Creates a new conversation associated with the given session ID.
 ///
@@ -13,7 +13,10 @@ use sea_orm::ColumnTrait;
 /// # Returns
 /// * `Ok(Model)` - The newly created conversation model.
 /// * `Err` - If an error occurs during insertion.
-pub async fn create_conversation(db: &DatabaseConnection, session_id: &i32) -> Result<db::entities::conversation::Model> {
+pub async fn create_conversation(
+    db: &DatabaseConnection,
+    session_id: &i32,
+) -> Result<db::entities::conversation::Model> {
     let conversation = db::entities::conversation::ActiveModel {
         id: Default::default(),
         name: Default::default(),
@@ -34,8 +37,13 @@ pub async fn create_conversation(db: &DatabaseConnection, session_id: &i32) -> R
 /// * `Ok(Some(Model))` - If the conversation is found.
 /// * `Ok(None)` - If no conversation with the given ID exists.
 /// * `Err` - If a database error occurs.
-pub async fn get_conversation_by_id(db: &DatabaseConnection, id: &i32) -> Result<Option<db::entities::conversation::Model>> {
-    let conversation = db::entities::conversation::Entity::find_by_id(id.clone()).one(db).await?;
+pub async fn get_conversation_by_id(
+    db: &DatabaseConnection,
+    id: &i32,
+) -> Result<Option<db::entities::conversation::Model>> {
+    let conversation = db::entities::conversation::Entity::find_by_id(id.clone())
+        .one(db)
+        .await?;
     Ok(conversation)
 }
 
@@ -48,7 +56,10 @@ pub async fn get_conversation_by_id(db: &DatabaseConnection, id: &i32) -> Result
 /// # Returns
 /// * `Ok(Vec<Model>)` - A list of conversations sorted by creation time (ascending).
 /// * `Err` - If a database error occurs.
-pub async fn get_conversations_by_session_id(db: &DatabaseConnection, session_id: i32) -> Result<Vec<db::entities::conversation::Model>> {
+pub async fn get_conversations_by_session_id(
+    db: &DatabaseConnection,
+    session_id: i32,
+) -> Result<Vec<db::entities::conversation::Model>> {
     let conversations = db::entities::conversation::Entity::find()
         .order_by_asc(db::entities::conversation::Column::CreatedAt)
         .filter(db::entities::conversation::Column::SessionId.eq(session_id))
@@ -56,7 +67,6 @@ pub async fn get_conversations_by_session_id(db: &DatabaseConnection, session_id
         .await?;
     Ok(conversations)
 }
-
 
 /// Deletes a conversation from the database by its ID, if it exists.
 ///
@@ -80,7 +90,9 @@ pub async fn get_conversations_by_session_id(db: &DatabaseConnection, session_id
 ///
 /// ```
 pub async fn delete_conversation_by_id(db: &DatabaseConnection, id: &i32) -> Result<()> {
-    let conversation = db::entities::conversation::Entity::find_by_id(*id).one(db).await?;
+    let conversation = db::entities::conversation::Entity::find_by_id(*id)
+        .one(db)
+        .await?;
     if let Some(conversation) = conversation {
         conversation.delete(db).await?;
     }
@@ -111,8 +123,14 @@ pub async fn delete_conversation_by_id(db: &DatabaseConnection, id: &i32) -> Res
 /// - There is a database failure during the update.
 ///
 /// ```
-pub async fn update_conversation_name(db: &DatabaseConnection, id: &i32, name: String) -> Result<db::entities::conversation::Model> {
-    let mut conversation = db::entities::conversation::Entity::find_by_id(*id).one(db).await?
+pub async fn update_conversation_name(
+    db: &DatabaseConnection,
+    id: &i32,
+    name: String,
+) -> Result<db::entities::conversation::Model> {
+    let mut conversation = db::entities::conversation::Entity::find_by_id(*id)
+        .one(db)
+        .await?
         .ok_or_else(|| Error::ConversationNotFound)?;
 
     let mut conversation: db::entities::conversation::ActiveModel = conversation.into();

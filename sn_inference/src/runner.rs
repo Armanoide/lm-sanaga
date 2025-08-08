@@ -1,33 +1,32 @@
+use crate::cache::k_v_cache::k_v_cache::ArcCacheList;
+use crate::cache::k_v_cache::k_v_cache_session::KvCacheSession;
+use crate::error::{Error, Result};
+use crate::factory::k_v_cache::create_cache_from_model_runtime;
+use crate::model::model_kind::ModelKind;
+use crate::model::model_runtime::{GenerateTextResult, ModelRuntime};
+use crate::token::token_stream_manager::PromptStreamCallback;
+use minijinja::ErrorKind::BadSerialization;
+use serde::{Deserialize, Serialize};
+use sn_core::types::conversation::Conversation;
+use sn_core::utils::rw_lock::RwLockExt;
 use std::env::VarError;
 use std::ops::Add;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
-use minijinja::ErrorKind::BadSerialization;
-use crate::error::{Error, Result};
-use crate::model::model_runtime::{GenerateTextResult, ModelRuntime};
-use crate::token::token_stream_manager::PromptStreamCallback;
-use serde::{Deserialize, Serialize};
 use tracing::{error, info};
-use sn_core::types::conversation::Conversation;
-use sn_core::utils::rw_lock::RwLockExt;
-use crate::cache::k_v_cache::k_v_cache::ArcCacheList;
-use crate::cache::k_v_cache::k_v_cache_session::KvCacheSession;
-use crate::factory::k_v_cache::{create_cache_from_model_runtime};
-use crate::model::model_kind::ModelKind;
 
 const BASE_PATH_DEFAULT: &str = "~/.sanaga";
 #[derive(Debug)]
 pub struct Runner {
     pub models: Arc<RwLock<Vec<Arc<ModelRuntime>>>>,
-    pub session_caches: Arc<RwLock<Vec<KvCacheSession>>>
+    pub session_caches: Arc<RwLock<Vec<KvCacheSession>>>,
 }
-
 
 fn expand_tilde(path: &str) -> String {
     if path.starts_with("~") {
         if let Some(home) = std::env::var_os("HOME") {
             return PathBuf::from(path.replacen("~", &home.to_string_lossy(), 1))
-            .display()
+                .display()
                 .to_string();
         }
     }
@@ -35,10 +34,14 @@ fn expand_tilde(path: &str) -> String {
 }
 
 fn get_base_path() -> String {
-    expand_tilde(std::env::var("PATH_SANAGA").unwrap_or_else(|_| {
-        info!("Using default base path: {}", BASE_PATH_DEFAULT);
-        String::from(BASE_PATH_DEFAULT)
-    }).as_str())
+    expand_tilde(
+        std::env::var("PATH_SANAGA")
+            .unwrap_or_else(|_| {
+                info!("Using default base path: {}", BASE_PATH_DEFAULT);
+                String::from(BASE_PATH_DEFAULT)
+            })
+            .as_str(),
+    )
 }
 
 fn get_base_path_models() -> String {
@@ -61,7 +64,11 @@ impl Runner {
         let id = hex::encode(salt.as_bytes());
         String::from(&id[(id.len() - 10)..])
     }
-    pub fn load_model_name(&self, name: &str, callback: Option<PromptStreamCallback>) -> Result<(String)> {
+    pub fn load_model_name(
+        &self,
+        name: &str,
+        callback: Option<PromptStreamCallback>,
+    ) -> Result<(String)> {
         let path = get_base_path_models().add(name);
         let id = Self::generate_path_id(&path);
 
@@ -91,20 +98,19 @@ impl Runner {
         let context = "get_model_by_id";
         let result = self.models.read_lock(context);
         match result {
-            Ok(guard) => {
-                guard.iter().find(|m| m.id == model_id)
-                    .map(|model| model.clone())
-            }
-            Err(_) => {
-                None
-            }
+            Ok(guard) => guard
+                .iter()
+                .find(|m| m.id == model_id)
+                .map(|model| model.clone()),
+            Err(_) => None,
         }
     }
     pub fn unload_model(&mut self, model_id: &str) {
         let result = self.models.read_lock("unload_model");
         match result {
             Ok(guard_models) => {
-                guard_models.iter()
+                guard_models
+                    .iter()
                     .position(|model| model.id == model_id)
                     .map(|index| {
                         info!("Unloading model: {}", guard_models[index].name);
@@ -117,30 +123,30 @@ impl Runner {
                                 error!("Failed to acquire write lock for unloading model");
                             }
                         }
-
                     });
             }
             Err(_) => {
                 error!("Failed to acquire read lock for unloading model");
             }
         }
-
     }
 
     pub fn get_session_cache(
         &self,
         session_id: Option<i32>,
-        model_id: &str
+        model_id: &str,
     ) -> Result<ArcCacheList> {
-        let model = match self.get_model_by_id(model_id){
+        let model = match self.get_model_by_id(model_id) {
             Some(m) => m,
-            None => return Err(Error::ModelRuntimeNotFoundWithId(model_id.to_string()))
+            None => return Err(Error::ModelRuntimeNotFoundWithId(model_id.to_string())),
         };
 
         if let Some(id) = session_id {
             // Try to find existing session cache
             {
-                let guard = self.session_caches.read_lock("check existing session cache")?;
+                let guard = self
+                    .session_caches
+                    .read_lock("check existing session cache")?;
                 if let Some(existing) = guard.iter().find(|c| c.session_id == id) {
                     return Ok(existing.cache.clone());
                 }
@@ -163,14 +169,13 @@ impl Runner {
         }
     }
 
-
     pub fn generate_text(
         &self,
         model_id: &str,
         conversation: &Conversation,
         session_id: Option<i32>,
         callback: Option<PromptStreamCallback>,
-    ) -> Result<GenerateTextResult>  {
+    ) -> Result<GenerateTextResult> {
         if let Some(model_runtime) = self.get_model_by_id(model_id) {
             let cache = self.get_session_cache(session_id, model_id)?;
             model_runtime.generate_text(conversation, cache, callback)

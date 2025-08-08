@@ -1,10 +1,10 @@
-use axum::body::Body;
-use axum::response::{IntoResponse, Response};
-use sn_core::types::stream_data::StreamData;
 use crate::error::{Error, ResultAPIStream};
 use crate::utils::tokio_bridge::TokenBridge;
+use axum::body::Body;
+use axum::response::{IntoResponse, Response};
 use crossbeam::channel::Receiver;
 use futures::StreamExt;
+use sn_core::types::stream_data::StreamData;
 
 /// A builder for constructing a Server-Sent Events (SSE) HTTP response
 /// from a stream of `StreamData` received over a bounded channel.

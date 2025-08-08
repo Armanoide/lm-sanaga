@@ -44,12 +44,14 @@ impl Convert for Vec<Model> {
         sn_core::types::conversation::Conversation {
             name: None,
             id: None,
-            messages: self.par_iter()
+            messages: self
+                .par_iter()
                 .map(|m| sn_core::types::message::Message {
                     content: m.content.clone(),
                     role: MessageRole::try_from(m.role.as_str()).unwrap_or(MessageRole::User),
                     stats: None,
-                }).collect(),
+                })
+                .collect(),
         }
     }
 }
