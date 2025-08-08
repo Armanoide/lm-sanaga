@@ -24,11 +24,6 @@ pub async fn get_session_conversation_list(
 
     let conversations =
         db::repository::conversation::get_conversations_by_session_id(&db, session_id).await?;
-    println!(
-        "Retrieved {} conversations for session_id {}",
-        conversations.len(),
-        session_id
-    );
     let conversations = conversations.into_conversations();
     Ok(Json(json!(conversations)))
 }

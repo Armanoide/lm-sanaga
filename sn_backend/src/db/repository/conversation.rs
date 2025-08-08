@@ -135,7 +135,6 @@ pub async fn update_conversation_name(
 
     let mut conversation: db::entities::conversation::ActiveModel = conversation.into();
     conversation.name = Set(Some(name.trim().replace('\n', "").replace('\r', "")));
-    println!("Updating conversation: {:?}", conversation);
     let updated_conversation = conversation.update(db).await?;
     Ok(updated_conversation)
 }

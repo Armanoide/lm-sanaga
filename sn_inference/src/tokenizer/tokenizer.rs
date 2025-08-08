@@ -38,20 +38,16 @@ impl Tokenizer {
         let chat_template_name = "chat";
         let mut conversations = conversations.clone();
 
-        {
-            // remove think
-            // from template
+        {// remove think from template & messages (used for Qwen3)
             chat_template = chat_template.replace(
                 "message.content.split('</think>')[-1].lstrip('\\n')",
                 "message.content",
             );
-            println!("chat_template: {}", chat_template);
             conversations
                 .messages
                 .iter_mut()
                 .for_each(|m| m.remove_think());
         }
-        println!("chat_template2: {}", chat_template);
 
         env.add_template(chat_template_name, chat_template.as_str())?;
         render_chat_template(

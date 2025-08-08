@@ -2,7 +2,7 @@ use crate::error::{Error, Result};
 use crate::types::message_stats::MessageStats;
 use serde::{Deserialize, Serialize};
 use tracing::error;
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Message {
     pub content: String,
     pub role: MessageRole,
@@ -10,6 +10,11 @@ pub struct Message {
 }
 
 impl Message {
+    pub fn sanitize_content(s: String) -> String {
+       let mut m = Message{ stats: None, role: MessageRole::Assistant, content: s};
+        m.remove_think();
+        m.content
+    }
     pub fn remove_think(&mut self) {
         if let Some(end_pos) = self.content.find("</think>") {
             let after_think = end_pos + "</think>".len();
@@ -24,9 +29,10 @@ impl From<Message> for Vec<Message> {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub enum MessageRole {
     #[serde(rename = "user")]
+    #[default]
     User,
     #[serde(rename = "assistant")]
     Assistant,

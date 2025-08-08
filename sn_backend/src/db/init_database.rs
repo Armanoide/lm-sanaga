@@ -37,7 +37,7 @@ pub async fn init_database(
             Database::connect(format!("{database_url}/{database_name}")).await?
         }
         DbBackend::Sqlite => {
-            println!("SQLite database detected.");
+            info!("SQLite database detected.");
             db
         }
     };

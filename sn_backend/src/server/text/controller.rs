@@ -101,9 +101,11 @@ async fn generate_title_conversation(
             guard.generate_text(&payload.model_id, &conversation, None, None)?;
         Ok::<_, Error>(generate_text_result)
     })();
+    println!("generate_text_result: {:?}", generate_text_result);
     match generate_text_result {
         Ok(result) => {
             let (title_conversation, _) = result;
+            let  title_conversation = Message::sanitize_content(title_conversation);
             let _ = update_conversation_name(db, conversation_id, title_conversation).await;
         }
         Err(err) => {
