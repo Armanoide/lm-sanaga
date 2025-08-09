@@ -124,6 +124,7 @@ impl ModelRuntime {
 
         // Render prompt from conversation
         let (inputs, _) = tokenizer.apply_chat_template(conversation)?;
+        println!("Inputs: {:?}", inputs);
         let prompt_ids = tokenizer.encode_prompt(vec![inputs])?;
 
         if prompt_ids.is_empty() {

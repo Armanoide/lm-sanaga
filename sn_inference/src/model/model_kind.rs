@@ -42,8 +42,8 @@ impl Module for ModelKind {
         delegate_to_variants!(mut self => forward, x, mask, cache)
     }
 
-    fn set_weight(&mut self, name: &str, tensor: &Tensor) -> Result<()> {
-        delegate_to_variants!(mut self => set_weight, name, tensor)
+    fn set_weight(&mut self, name: &str, sub_name: &str, tensor: &Tensor) -> Result<()> {
+        delegate_to_variants!(mut self => set_weight, name, sub_name, tensor)
     }
 }
 

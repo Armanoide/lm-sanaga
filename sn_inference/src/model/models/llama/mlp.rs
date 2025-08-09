@@ -51,25 +51,22 @@ impl Module for MLPLlama {
         Ok(self.down_proj.forward(&multiplied)?)
     }
 
-    fn set_weight(&mut self, name: &str, tensor: &Tensor) -> Result<()> {
-        if let Some(layer_without_suffix) = name.splitn(5, '.').nth(4) {
-            match layer_without_suffix {
-                "gate_proj.weight" => self.gate_proj.update_weight(&tensor.data),
-                "down_proj.weight" => self.down_proj.update_weight(&tensor.data),
-                "up_proj.weight" => self.up_proj.update_weight(&tensor.data),
+    fn set_weight(&mut self, name: &str, sub_name: &str, tensor: &Tensor) -> Result<()> {
+        match sub_name {
+            "gate_proj.weight" => Ok(self.gate_proj.update_weight(&tensor.data)),
+            "down_proj.weight" => Ok(self.down_proj.update_weight(&tensor.data)),
+            "up_proj.weight" => Ok(self.up_proj.update_weight(&tensor.data)),
 
-                "gate_proj.scales" => self.gate_proj.update_scales(&tensor.data),
-                "down_proj.scales" => self.down_proj.update_scales(&tensor.data),
-                "up_proj.scales" => self.up_proj.update_scales(&tensor.data),
+            "gate_proj.scales" => Ok(self.gate_proj.update_scales(&tensor.data)),
+            "down_proj.scales" => Ok(self.down_proj.update_scales(&tensor.data)),
+            "up_proj.scales" => Ok(self.up_proj.update_scales(&tensor.data)),
 
-                "gate_proj.biases" => self.gate_proj.update_biases(&tensor.data),
-                "down_proj.biases" => self.down_proj.update_biases(&tensor.data),
-                "up_proj.biases" => self.up_proj.update_biases(&tensor.data),
+            "gate_proj.biases" => Ok(self.gate_proj.update_biases(&tensor.data)),
+            "down_proj.biases" => Ok(self.down_proj.update_biases(&tensor.data)),
+            "up_proj.biases" => Ok(self.up_proj.update_biases(&tensor.data)),
 
-                _ => return Err(Error::UnsupportedWeight(name.to_string())),
-            }
+            _ => Err(Error::UnsupportedWeight(name.to_string())),
         }
-        Ok(())
     }
 }
 

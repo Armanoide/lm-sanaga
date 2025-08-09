@@ -1,8 +1,6 @@
 use crate::cache::k_v_cache::k_v_cache::ArcCacheItem;
-use crate::config::config_model::ConfigModel;
 use crate::config::config_models::qwen3::Qwen3Config;
 use crate::error::{Error, Result};
-use crate::factory::rope::{RopeModelType, initialize_rope};
 use crate::mask::mask::AttentionMask;
 use crate::model::models::qwen3::rope::RopeQwen3;
 use crate::model::weight::Tensor;
@@ -108,31 +106,27 @@ impl Module for AttentionQwen3 {
         Ok(self.o_proj.forward(&output)?)
     }
 
-    fn set_weight(&mut self, name: &str, tensor: &Tensor) -> Result<()> {
-        if let Some(layer_without_suffix) = name.splitn(5, '.').nth(4) {
-            match layer_without_suffix {
-                "q_proj.weight" => self.q_proj.update_weight(&tensor.data),
-                "k_proj.weight" => self.k_proj.update_weight(&tensor.data),
-                "v_proj.weight" => self.v_proj.update_weight(&tensor.data),
-                "o_proj.weight" => self.o_proj.update_weight(&tensor.data),
+    fn set_weight(&mut self, name: &str, sub_name: &str, tensor: &Tensor) -> Result<()> {
+        match sub_name {
+            "q_proj.weight" => Ok(self.q_proj.update_weight(&tensor.data)),
+            "k_proj.weight" => Ok(self.k_proj.update_weight(&tensor.data)),
+            "v_proj.weight" => Ok(self.v_proj.update_weight(&tensor.data)),
+            "o_proj.weight" => Ok(self.o_proj.update_weight(&tensor.data)),
 
-                "q_proj.scales" => self.q_proj.update_scales(&tensor.data),
-                "k_proj.scales" => self.k_proj.update_scales(&tensor.data),
-                "v_proj.scales" => self.v_proj.update_scales(&tensor.data),
-                "o_proj.scales" => self.o_proj.update_scales(&tensor.data),
+            "q_proj.scales" => Ok(self.q_proj.update_scales(&tensor.data)),
+            "k_proj.scales" => Ok(self.k_proj.update_scales(&tensor.data)),
+            "v_proj.scales" => Ok(self.v_proj.update_scales(&tensor.data)),
+            "o_proj.scales" => Ok(self.o_proj.update_scales(&tensor.data)),
 
-                "q_proj.biases" => self.q_proj.update_biases(&tensor.data),
-                "k_proj.biases" => self.k_proj.update_biases(&tensor.data),
-                "v_proj.biases" => self.v_proj.update_biases(&tensor.data),
-                "o_proj.biases" => self.o_proj.update_biases(&tensor.data),
+            "q_proj.biases" => Ok(self.q_proj.update_biases(&tensor.data)),
+            "k_proj.biases" => Ok(self.k_proj.update_biases(&tensor.data)),
+            "v_proj.biases" => Ok(self.v_proj.update_biases(&tensor.data)),
+            "o_proj.biases" => Ok(self.o_proj.update_biases(&tensor.data)),
 
-                "k_norm.weight" => self.k_norm.update_weight(&tensor.data),
-                "q_norm.weight" => self.q_norm.update_weight(&tensor.data),
-
-                _ => return Err(Error::UnsupportedWeight(name.to_string())),
-            }
+            "k_norm.weight" => Ok(self.k_norm.update_weight(&tensor.data)),
+            "q_norm.weight" => Ok(self.q_norm.update_weight(&tensor.data)),
+            _ => Err(Error::UnsupportedWeight(name.to_string())),
         }
-        Ok(())
     }
 }
 
@@ -206,17 +200,7 @@ impl AttentionQwen3 {
         }
         .build()?;
 
-        let rope_model = initialize_rope(
-            head_dim,
-            qwen3_config.rope_theta,
-            false,
-            ConfigModel::Qwen3(qwen3_config),
-        )?;
-
-        let rope = match rope_model {
-            RopeModelType::Qwen3(rope) => rope,
-            _ => return Err(Error::InvalidConfig("Expected Qwen3Config".into())),
-        };
+        let rope = RopeQwen3::new(head_dim, qwen3_config.rope_theta, false)?;
 
         Ok(AttentionQwen3 {
             hidden_size,

@@ -105,7 +105,7 @@ async fn generate_title_conversation(
     match generate_text_result {
         Ok(result) => {
             let (title_conversation, _) = result;
-            let  title_conversation = Message::sanitize_content(title_conversation);
+            let title_conversation = Message::sanitize_content(title_conversation);
             let _ = update_conversation_name(db, conversation_id, title_conversation).await;
         }
         Err(err) => {

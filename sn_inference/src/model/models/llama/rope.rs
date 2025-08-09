@@ -18,8 +18,11 @@ impl RopeLlama {
         dims: i32,
         base: f32,
         traditional: bool,
-        rope_config: &LLaMARopeScalingConfig,
+        rope_config: Option<&LLaMARopeScalingConfig>,
     ) -> Result<RopeLlama> {
+        //        let rope_config = rope_config.unwrap_or_else(|_| { Error::RopeConfigMissing })?;
+        let rope_config = rope_config.ok_or(Error::RopeConfigMissing)?;
+
         let dims = dims;
         let max_position_embeddings = rope_config.original_max_position_embeddings;
         let traditional = traditional;

@@ -8,6 +8,10 @@ pub struct Qwen3Config {
     pub architectures: Vec<String>,
     pub attention_bias: bool,
     pub attention_dropout: f64,
+
+    // Only in emb
+    pub bos_token_id: Option<i32>,
+
     pub eos_token_id: i32,
     pub head_dim: i32,
     pub hidden_act: String,
@@ -20,11 +24,13 @@ pub struct Qwen3Config {
     pub num_attention_heads: i32,
     pub num_hidden_layers: i32,
     pub num_key_value_heads: i32,
-    pub pad_token_id: i32,
-    pub qkv_bias: bool,
 
+    // Only in normal
+    pub pad_token_id: Option<i32>,
+    pub qkv_bias: Option<bool>,
     pub quantization: Option<QuantizationConfig>,
     pub quantization_config: Option<QuantizationConfig>,
+    pub use_qk_norm: Option<bool>,
 
     pub rms_norm_eps: f32,
     pub rope_scaling: Option<Qwen3RopeScalingConfig>,
@@ -34,7 +40,6 @@ pub struct Qwen3Config {
     pub torch_dtype: String,
     pub transformers_version: String,
     pub use_cache: bool,
-    pub use_qk_norm: bool,
     pub use_sliding_window: bool,
     pub vocab_size: i32,
 }

@@ -1,5 +1,6 @@
 use crate::cache::k_v_cache::k_v_cache::ArcCacheItem;
 use crate::config::config_models::llama::LLaMAConfig;
+use crate::default_forward_transformer_block;
 use crate::error::{Error, Result};
 use crate::mask::mask::AttentionMask;
 use crate::model::models::llama::attention::AttentionLlama;
@@ -38,37 +39,31 @@ impl Module for TransformerBlockLlama {
         mask: Option<&AttentionMask>,
         cache: Option<ArcCacheItem>,
     ) -> Result<Array> {
-        let normed_input = self.input_layernorm.forward(x)?;
-        let attn_output = self.self_attn.forward(&normed_input, mask, cache)?;
-        let residual = x + attn_output;
-        let normed_residual = self.post_attention_layernorm.forward(&residual)?;
-        // No cache for MLP
-        let mlp_output = self.mlp.forward(&normed_residual, mask, None)?;
-        Ok(residual + mlp_output)
+        default_forward_transformer_block!(self, x, mask, cache)
     }
 
-    fn set_weight(&mut self, name: &str, tensor: &Tensor) -> Result<()> {
-        // Split on '.' and skip the first 3 segments: "model", "layers", "<index>"
-        if let Some(layer_without_suffix) = name.splitn(4, '.').nth(3) {
-            match layer_without_suffix {
-                "post_attention_layernorm.weight" => {
-                    self.post_attention_layernorm.update_weight(&tensor.data)
-                }
-                "input_layernorm.weight" => self.input_layernorm.update_weight(&tensor.data),
-                _ => {
-                    if let Some(submodule) = layer_without_suffix.split(".").nth(0) {
-                        match submodule {
-                            "mlp" => self.mlp.set_weight(name, tensor)?,
-                            "self_attn" => self.self_attn.set_weight(name, tensor)?,
-                            _ => {
-                                return Err(Error::UnsupportedWeight(name.to_string()));
-                            }
-                        }
+    fn set_weight(&mut self, name: &str, sub_name: &str, tensor: &Tensor) -> Result<()> {
+        match sub_name {
+            "post_attention_layernorm.weight" => {
+                return Ok(self.post_attention_layernorm.update_weight(&tensor.data));
+            }
+            "input_layernorm.weight" => {
+                return Ok(self.input_layernorm.update_weight(&tensor.data));
+            }
+            _ => {
+                if let Some(base_sub_name) = sub_name.split(".").next() {
+                    let exclude_part = format!("{}.", base_sub_name);
+                    if let Some(sub_name) = name.split(exclude_part.as_str()).nth(1) {
+                        return match base_sub_name {
+                            "mlp" => Ok(self.mlp.set_weight(name, sub_name, tensor)?),
+                            "self_attn" => Ok(self.self_attn.set_weight(name, sub_name, tensor)?),
+                            _ => Err(Error::UnsupportedWeight(name.to_string())),
+                        };
                     }
                 }
             }
         }
-        Ok(())
+        Err(Error::UnsupportedWeight(name.to_string()))
     }
 }
 

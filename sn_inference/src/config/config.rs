@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
 use std::rc::Rc;
+use tracing::debug;
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Config {
     pub model: Rc<ConfigModel>,
@@ -15,6 +17,26 @@ pub struct Config {
     pub tokenizer_custom_path: String,
     pub tokenizer_path: String,
     pub tokenizer_vocab_path: String,
+}
+
+fn get_config_tokenizer_custom(tokenizer_custom_path: &str, root_path: &str) -> Result<ConfigTokenizerCustom> {
+    let config_tokenizer_custom =
+        Config::from_file::<ConfigTokenizerCustom>(&tokenizer_custom_path);
+
+    let config_tokenizer_custom = match config_tokenizer_custom {
+        Ok(config) => config,
+        Err(e) => {
+            // sometimes it can be meesy and the info is split into multiple files
+            let tokenizer_custom_path = format!("{}/chat_template.jinja", root_path);
+            debug!("Fallback to read tokenizer config from {}: {}", tokenizer_custom_path, e);
+            let chat_template = fs::read_to_string(tokenizer_custom_path)?;
+            ConfigTokenizerCustom {
+                chat_template
+            }
+        }
+    };
+
+    Ok(config_tokenizer_custom)
 }
 
 impl Config {
@@ -38,9 +60,7 @@ impl Config {
             .to_string();
 
         let config_model = Config::from_file::<ConfigModel>(&config_path)?;
-        let config_tokenizer_custom =
-            Config::from_file::<ConfigTokenizerCustom>(&tokenizer_custom_path)?;
-
+        let config_tokenizer_custom = get_config_tokenizer_custom(&tokenizer_custom_path, &root_path)?;
         Ok(Config {
             model: Rc::new(config_model),
             tokenizer_custom: config_tokenizer_custom,

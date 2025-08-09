@@ -14,5 +14,5 @@ pub trait Module: Any + Quantize {
         cache: Option<ArcCacheItem>,
     ) -> Result<Array>;
 
-    fn set_weight(&mut self, name: &str, tensor: &Tensor) -> Result<()>;
+    fn set_weight(&mut self, name: &str, sub_name: &str, tensor: &Tensor) -> Result<()>;
 }

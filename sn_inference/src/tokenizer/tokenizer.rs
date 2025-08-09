@@ -36,17 +36,21 @@ impl Tokenizer {
         let mut env = Environment::new();
         let mut chat_template = self.get_chat_template();
         let chat_template_name = "chat";
-        let mut conversations = conversations.clone();
 
-        {// remove think from template & messages (used for Qwen3)
+        {// Some Patch python code to minijinja template for rust
+            // remove think from template & messages (used for Qwen3)
             chat_template = chat_template.replace(
                 "message.content.split('</think>')[-1].lstrip('\\n')",
-                "message.content",
+                "(message.content | split('</think>'))[-1] | trim",
             );
-            conversations
-                .messages
-                .iter_mut()
-                .for_each(|m| m.remove_think());
+            chat_template = chat_template.replace(
+                "message.content.startswith('<tool_response>')",
+                "message.content[:15] == '<tool_response>'"
+            );
+            chat_template = chat_template.replace(
+                "message.content.endswith('</tool_response>')",
+                "message.content[-16:] == '</tool_response>'"
+            );
         }
 
         env.add_template(chat_template_name, chat_template.as_str())?;

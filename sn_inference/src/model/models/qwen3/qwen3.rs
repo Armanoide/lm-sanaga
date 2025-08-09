@@ -4,6 +4,7 @@ use crate::error::{Error, Result};
 use crate::factory::mask::create_attention_mask;
 use crate::mask::mask::AttentionMask;
 use crate::model::model::Model;
+use crate::model::models::default::model::extract_layer_index;
 use crate::model::models::qwen3::transformer_block::TransformerBlockQwen3;
 use crate::model::weight::{Tensor, Weight};
 use crate::module::Module;
@@ -63,29 +64,38 @@ impl Module for ModelQwen3 {
         unimplemented!()
     }
 
-    fn set_weight(&mut self, name: &str, tensor: &Tensor) -> Result<()> {
+    fn set_weight(&mut self, name: &str, _: &str, tensor: &Tensor) -> Result<()> {
         self.bytes += tensor.size;
         match name {
             //"lm_head.weight" => return Ok(self.lm_head.update_weight(&tensor.data)),
             //"lm_head.scales" => return Ok(self.lm_head.update_scales(&tensor.data)),
             //"lm_head.biases" => return Ok(self.lm_head.update_biases(&tensor.data)),
-            "model.embed_tokens.weight" => {
+            "embed_tokens.weight" => {
                 return Ok(self.embed_tokens.update_weight(&tensor.data));
             }
-            "model.embed_tokens.scales" => {
+            "embed_tokens.scales" => {
                 return Ok(self.embed_tokens.update_scales(&tensor.data));
             }
-            "model.embed_tokens.biases" => {
+            "embed_tokens.biases" => {
                 return Ok(self.embed_tokens.update_biases(&tensor.data));
             }
-            "model.norm.weight" => return Ok(self.norm.update_weight(&tensor.data)),
+            "norm.weight" => return Ok(self.norm.update_weight(&tensor.data)),
             _ => {
-                if name.starts_with("model.layers.") {
+                if name.starts_with("layers.") {
                     let parts: Vec<&str> = name.split(".").collect();
-                    if parts.len() >= 5 {
-                        let idx = parts[2].parse::<usize>()?;
+                    if parts.len() >= 4 {
+                        let layer_subname = name.split("layers.").nth(1);
+                        let (idx, sub_name) = layer_subname
+                            .and_then(|l| {
+                                let mut parts = l.splitn(2, '.'); // split into two: index and rest
+                                let idx_str = parts.next()?;
+                                let sub_name = parts.next()?;
+                                let idx = idx_str.parse::<usize>().ok()?;
+                                Some((idx, sub_name))
+                            })
+                            .ok_or_else(|| Error::UnsupportedParseWeight(name.to_string()))?;
                         if idx < self.layers.len() {
-                            return Ok(self.layers[idx].set_weight(name, tensor)?);
+                            return Ok(self.layers[idx].set_weight(name, sub_name, tensor)?);
                         }
                     }
                 }
@@ -108,7 +118,7 @@ impl Model for ModelQwen3 {
 
     fn load_weights(&mut self, weight: &Weight) -> Result<()> {
         for (name, tensor) in &weight.tensors {
-            self.set_weight(name.as_str(), tensor)?
+            self.set_weight(name.as_str(), "", tensor)?
         }
         Ok(())
     }

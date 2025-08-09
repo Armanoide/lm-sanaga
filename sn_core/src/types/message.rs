@@ -11,7 +11,11 @@ pub struct Message {
 
 impl Message {
     pub fn sanitize_content(s: String) -> String {
-       let mut m = Message{ stats: None, role: MessageRole::Assistant, content: s};
+        let mut m = Message {
+            stats: None,
+            role: MessageRole::Assistant,
+            content: s,
+        };
         m.remove_think();
         m.content
     }

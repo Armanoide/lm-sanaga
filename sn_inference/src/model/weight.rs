@@ -104,6 +104,13 @@ fn read_safetensors_weights(
         let offset_end = base_offset + data_offsets[1] as usize;
         let callback = callback.clone();
 
+        // make sure to have consistent tensor names
+        // remove "model." prefix if it exists
+        // this is to ensure compatibility with different model formats
+        // that may or may not include this prefix
+        // e.g. "model.embedding.weight" -> "embedding.weight"
+        let name = &name.replace("model.", "");
+
         if let Some(cb) = callback {
             let _ = cb.send(StreamData::for_run_model_sse_response(
                 (RunModelResponseSSE {

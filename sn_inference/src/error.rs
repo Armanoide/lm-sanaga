@@ -14,6 +14,9 @@ pub enum Error {
     #[error("Unsupported model weight parameter: {0}")]
     UnsupportedWeight(String),
 
+    #[error("Unsupported parse model weight for: {0}")]
+    UnsupportedParseWeight(String),
+
     #[error("Failed to parse integer value: {0}")]
     ParseIntError(#[from] std::num::ParseIntError),
 
