@@ -22,7 +22,7 @@ impl DTypeExt for Dtype {
             "bf16" => Dtype::Bfloat16,
             "bfloat16" => Dtype::Bfloat16,
             "Complex64" => Dtype::Complex64,
-            _ => Dtype::Bool,
+            _ => Dtype::Float32,
         }
     }
 }

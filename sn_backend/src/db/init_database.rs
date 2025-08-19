@@ -1,6 +1,6 @@
-use crate::error::{Error, Result};
+use crate::error::Result;
 use migration::{Migrator, MigratorTrait};
-use sea_orm::{ConnectionTrait, Database, DatabaseConnection, DbBackend, DbErr, Statement};
+use sea_orm::{ConnectionTrait, Database, DatabaseConnection, DbBackend, Statement};
 use tracing::info;
 
 pub async fn init_database(

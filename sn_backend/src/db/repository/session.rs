@@ -19,7 +19,7 @@ use sn_core::server::payload::create_session_request::CreateSessionRequest;
 pub async fn create_session(
     db: &DatabaseConnection,
     payload: Json<CreateSessionRequest>,
-) -> Result<(entities::session::Model)> {
+) -> Result<entities::session::Model> {
     let CreateSessionRequest { name } = payload.0;
 
     if let Some(session) = Session::Entity::find()

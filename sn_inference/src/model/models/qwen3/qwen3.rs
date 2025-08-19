@@ -3,8 +3,7 @@ use crate::config::config_models::qwen3::Qwen3Config;
 use crate::error::{Error, Result};
 use crate::factory::mask::create_attention_mask;
 use crate::mask::mask::AttentionMask;
-use crate::model::model::Model;
-use crate::model::models::default::model::extract_layer_index;
+use crate::model::model::{ForwardType, Model};
 use crate::model::models::qwen3::transformer_block::TransformerBlockQwen3;
 use crate::model::weight::{Tensor, Weight};
 use crate::module::Module;
@@ -17,7 +16,6 @@ use mlx_rs::module::Module as MLXModule;
 use mlx_rs::nn::RmsNorm;
 use mlx_rs::nn::{Embedding, Linear, LinearBuilder, RmsNormBuilder};
 use mlx_rs::quantization::{MaybeQuantized, Quantizable};
-use rayon::prelude::*;
 use sn_core::utils::rw_lock::RwLockExt;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
@@ -67,9 +65,9 @@ impl Module for ModelQwen3 {
     fn set_weight(&mut self, name: &str, _: &str, tensor: &Tensor) -> Result<()> {
         self.bytes += tensor.size;
         match name {
-            //"lm_head.weight" => return Ok(self.lm_head.update_weight(&tensor.data)),
-            //"lm_head.scales" => return Ok(self.lm_head.update_scales(&tensor.data)),
-            //"lm_head.biases" => return Ok(self.lm_head.update_biases(&tensor.data)),
+            "lm_head.weight" => return Ok(self.lm_head.update_weight(&tensor.data)),
+            "lm_head.scales" => return Ok(self.lm_head.update_scales(&tensor.data)),
+            "lm_head.biases" => return Ok(self.lm_head.update_biases(&tensor.data)),
             "embed_tokens.weight" => {
                 return Ok(self.embed_tokens.update_weight(&tensor.data));
             }
@@ -132,11 +130,16 @@ impl Model for ModelQwen3 {
         x: &Array,
         mask: Option<&AttentionMask>,
         caches: Option<ArcCacheList>,
+        forward_type: &ForwardType,
     ) -> Result<Array> {
         let mut h = self.embed_tokens.forward(&x)?;
         let default_cache: Vec<Arc<RwLock<KVCache>>> = (0..self.layers.len())
             .into_iter()
-            .map(|_| Arc::new(RwLock::new(KVCache::default())))
+            .map(|idx| {
+                let mut cache = KVCache::default();
+                cache.layer_idx = idx as i32;
+                Arc::new(RwLock::new(cache))
+            })
             .collect();
 
         let default_cache = Arc::new(RwLock::new(default_cache));
@@ -150,7 +153,7 @@ impl Model for ModelQwen3 {
         };
 
         for (i, layer) in self.layers.iter_mut().enumerate() {
-            let context = format!("reding cache for layer {}", i);
+            let context = format!("ModelQwen3:layers:{}:cache", i);
             if let Some(cache) = caches.read_lock(context.as_str())?.get(i) {
                 h = layer.forward(&h, mask, Some(cache.clone()))?;
             } else {
@@ -159,10 +162,15 @@ impl Model for ModelQwen3 {
         }
 
         let out = self.norm.forward(&h)?;
-        if self.qwen3_config.tie_word_embeddings {
-            Ok(self.embed_tokens.as_linear(&out)?)
-        } else {
-            Ok(self.lm_head.forward(&out)?)
+        match forward_type {
+            ForwardType::Embedding => Ok(out),
+            ForwardType::Logits => {
+                if self.qwen3_config.tie_word_embeddings {
+                    Ok(self.embed_tokens.as_linear(&out)?)
+                } else {
+                    Ok(self.lm_head.forward(&out)?)
+                }
+            }
         }
     }
 

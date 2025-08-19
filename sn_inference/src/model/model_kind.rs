@@ -1,7 +1,7 @@
 use crate::cache::k_v_cache::k_v_cache::{ArcCacheItem, ArcCacheList};
 use crate::error::{Error, Result};
 use crate::mask::mask::AttentionMask;
-use crate::model::model::Model;
+use crate::model::model::{ForwardType, Model};
 use crate::model::models::llama::llama::ModelLLama;
 use crate::model::models::qwen3::qwen3::ModelQwen3;
 use crate::model::weight::{Tensor, Weight};
@@ -75,8 +75,9 @@ impl Model for ModelKind {
         x: &Array,
         mask: Option<&AttentionMask>,
         caches: Option<ArcCacheList>,
+        forward_type: &ForwardType,
     ) -> Result<Array> {
-        delegate_to_variants!(self => forward_model, x, mask, caches)
+        delegate_to_variants!(self => forward_model, x, mask, caches, forward_type)
     }
 
     fn get_model_bytes(&self) -> u64 {

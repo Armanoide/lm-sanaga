@@ -3,7 +3,6 @@ use crate::error::{Error, Result};
 use crate::server::app_state::AppState;
 use crate::server::{conversation, model, session, text};
 use axum::http::StatusCode;
-use axum::response::Response;
 use sn_inference::runner::Runner;
 use std::env;
 use std::sync::{Arc, RwLock};

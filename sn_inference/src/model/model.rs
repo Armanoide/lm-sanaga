@@ -5,6 +5,12 @@ use crate::model::weight::Weight;
 use crate::module::Module;
 use mlx_rs::Array;
 
+#[derive(PartialEq)]
+pub enum ForwardType {
+    Logits,
+    Embedding,
+}
+
 pub trait Model: Module {
     fn sanitize(&mut self, weight: &mut Weight);
     fn supports_quantization(&self) -> bool;
@@ -15,6 +21,7 @@ pub trait Model: Module {
         x: &Array,
         mask: Option<&AttentionMask>,
         caches: Option<ArcCacheList>,
+        forward_type: &ForwardType,
     ) -> Result<Array>;
     fn get_model_bytes(&self) -> u64;
 }

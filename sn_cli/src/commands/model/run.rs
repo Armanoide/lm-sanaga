@@ -2,10 +2,9 @@ use crate::client::CliClient;
 use crate::error::{Error, Result};
 use crate::prompt::prompt::simple_prompt;
 use crate::utils::stream_response_bytes::stream_response_bytes;
-use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use indicatif::{ProgressBar, ProgressStyle};
 use sn_core::server::payload::run_model_request::RunModelRequest;
 use sn_core::types::stream_data::{StreamData, StreamDataContent};
-use std::sync::Arc;
 
 pub async fn handle(cli_client: &CliClient, model_name: Option<String>) -> Result<()> {
     if let Some(model_name) = model_name {

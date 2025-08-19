@@ -71,7 +71,7 @@ pub fn scaled_dot_product_attention(
             AttentionMask::None => {
                 (DEFAULT_MASK_MODE, va)
             }
-            AttentionMask::MaskArray(array) => {
+            AttentionMask::Array(array) => {
                 let  arr = unsafe {
                     let v = mlx_vector_array_new();
                     mlx_vector_array_append_value(v, array.as_ptr());
@@ -79,7 +79,7 @@ pub fn scaled_dot_product_attention(
                 };
                 (DEFAULT_MASK_MODE, arr)
             }
-            /*AttentionMask::MaskArray(arrays) => {
+            /*AttentionMask::Array(arrays) => {
                 let va = VectorArray::try_from_iter(arrays.iter())?;
                 (DEFAULT_MASK_MODE, va)
             }*/

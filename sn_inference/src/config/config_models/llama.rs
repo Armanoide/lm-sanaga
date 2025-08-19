@@ -15,6 +15,7 @@ pub struct LLaMAConfig {
     pub intermediate_size: i32,
     pub max_position_embeddings: i32,
     pub mlp_bias: bool,
+    pub head_dim: Option<i32>,
     pub model_type: String,
     pub num_attention_heads: i32,
     pub num_hidden_layers: i32,

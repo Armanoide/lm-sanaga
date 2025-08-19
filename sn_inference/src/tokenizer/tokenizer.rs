@@ -1,14 +1,12 @@
-use crate::chat_template::chat_template::render_chat_template;
 use crate::config::config::Config;
 use crate::config::config_model::ConfigModel;
 use crate::error::{Error, Result};
 use crate::token::token_generated_info::TokenGeneratedInfo;
-use minijinja::Environment;
 use rayon::prelude::*;
-use sn_core::types::conversation::Conversation;
 use std::collections::HashSet;
 use std::rc::Rc;
 use tokenizers::tokenizer::Tokenizer as HugTokenizer;
+use tokenizers::{EncodeInput, Encoding, PaddingParams};
 use tracing::debug;
 
 #[derive(Debug)]
@@ -17,55 +15,50 @@ pub struct Tokenizer {
     config: Rc<Config>,
 }
 
+fn add_padding_params(config: &Rc<Config>, tool: &mut HugTokenizer) -> Result<()> {
+    if tool.get_padding().is_none()
+        && let Some(padding) = &config.tokenizer_custom.pad_token
+    {
+        let added_tokens_decoder = tool.get_added_tokens_decoder();
+        let token = added_tokens_decoder
+            .par_iter()
+            .find_any(|(_, ad)| ad.content == *padding);
+        if let Some((id, _)) = token {
+            let mut padding_params = PaddingParams::default();
+            padding_params.pad_id = *id;
+            tool.with_padding(Some(padding_params));
+        } else {
+            debug!("Padding token not found in tokenizer, using default padding.");
+        }
+    }
+    Ok(())
+}
+
 impl Tokenizer {
     pub fn new(config: Rc<Config>) -> Result<Tokenizer> {
         debug!("loading config in {}", &config.tokenizer_path);
-        let tool = HugTokenizer::from_file(&config.tokenizer_path)?;
+        let mut tool = HugTokenizer::from_file(&config.tokenizer_path)?;
+        add_padding_params(&config, &mut tool)?;
         Ok(Tokenizer { tool, config })
     }
-
-    pub fn get_chat_template(&self) -> String {
-        // check string or dict ?
-        self.config.tokenizer_custom.chat_template.clone()
+    pub fn get_pad_token_id(&self) -> Option<&PaddingParams> {
+        self.tool.get_padding()
     }
 
-    pub fn apply_chat_template(
+    pub fn encode_batch<'s, E>(
         &self,
-        conversations: &Conversation,
-    ) -> Result<(String, Option<Vec<(usize, usize)>>)> {
-        let mut env = Environment::new();
-        let mut chat_template = self.get_chat_template();
-        let chat_template_name = "chat";
-
-        {// Some Patch python code to minijinja template for rust
-            // remove think from template & messages (used for Qwen3)
-            chat_template = chat_template.replace(
-                "message.content.split('</think>')[-1].lstrip('\\n')",
-                "(message.content | split('</think>'))[-1] | trim",
-            );
-            chat_template = chat_template.replace(
-                "message.content.startswith('<tool_response>')",
-                "message.content[:15] == '<tool_response>'"
-            );
-            chat_template = chat_template.replace(
-                "message.content.endswith('</tool_response>')",
-                "message.content[-16:] == '</tool_response>'"
-            );
-        }
-
-        env.add_template(chat_template_name, chat_template.as_str())?;
-        render_chat_template(
-            &conversations,
-            None,
-            None,
-            &env,
-            chat_template_name,
-            false,
-            false,
-            Some(true),
-        )
+        input: Vec<E>,
+        add_special_tokens: bool,
+    ) -> Result<Vec<Encoding>>
+    where
+        E: Into<EncodeInput<'s>> + Send,
+    {
+        Ok(self.tool.encode_batch(input, add_special_tokens)?)
     }
 
+    pub fn encode(&self, input: &str, add_special_tokens: bool) -> Result<Encoding> {
+        Ok(self.tool.encode(input, add_special_tokens)?)
+    }
     pub fn encode_prompt(&self, messages: Vec<String>) -> Result<Vec<u32>> {
         match self.tool.encode_batch(messages, true) {
             Ok(encoding) => Ok(encoding

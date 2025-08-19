@@ -3,9 +3,7 @@ use crate::db::repository::conversation::{create_conversation, get_conversation_
 use crate::db::repository::session::get_session;
 use crate::error::{Error, Result};
 use axum::Json;
-use sea_orm::{
-    ActiveModelTrait, DatabaseConnection, EntityTrait, Iden, ModelTrait, QueryOrder, Set,
-};
+use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, ModelTrait, QueryOrder, Set};
 use sn_core::server::payload::generate_text_request::GenerateTextRequest;
 use sn_core::types::message::MessageRole;
 use sn_inference::model::model_runtime::GenerateTextResult;
@@ -29,7 +27,7 @@ pub async fn create_message(
     db: &DatabaseConnection,
     payload: &Json<GenerateTextRequest>,
     generate_text_result: &GenerateTextResult,
-) -> Result<(Option<entities::message::Model>)> {
+) -> Result<Option<entities::message::Model>> {
     let GenerateTextRequest {
         session_id,
         conversation_id,

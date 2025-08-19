@@ -128,7 +128,7 @@ pub async fn update_conversation_name(
     id: &i32,
     name: String,
 ) -> Result<db::entities::conversation::Model> {
-    let mut conversation = db::entities::conversation::Entity::find_by_id(*id)
+    let conversation = db::entities::conversation::Entity::find_by_id(*id)
         .one(db)
         .await?
         .ok_or_else(|| Error::ConversationNotFound)?;

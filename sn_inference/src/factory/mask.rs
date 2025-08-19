@@ -1,15 +1,12 @@
 use crate::cache::k_v_cache::k_v_cache::KVCache;
+use crate::error::Result;
 use crate::mask::mask::AttentionMask;
 use mlx_rs::Array;
-use mlx_rs::error::Exception;
 use mlx_rs::ops::arange;
+use std::borrow::Cow;
 use std::cmp::min;
 
-pub fn create_causal_mask(
-    n: i32,
-    offset: i32,
-    window_size: Option<i32>,
-) -> Result<Array, Exception> {
+pub fn create_causal_mask(n: i32, offset: i32, window_size: Option<i32>) -> Result<Array> {
     // Right indices: shape (1, offset + N)
     let rinds = arange::<_, f32>(None, offset + n, None)?;
 
@@ -29,7 +26,7 @@ pub fn create_causal_mask(
     let mut mask = linds.ge(&rinds)?;
 
     // Apply windowed attention if needed
-    if let Some(w) = window_size {
+    if let Some(_) = window_size {
         let rinds_plus_window = rinds.add(Array::from_int(1))?;
         let window_mask = linds.le(&rinds_plus_window)?;
         mask = mask.logical_and(&window_mask)?;
@@ -38,11 +35,11 @@ pub fn create_causal_mask(
     Ok(mask)
 }
 
-pub fn create_attention_mask(
+pub fn create_attention_mask<'a>(
     h: &Array,
     cache: Option<&KVCache>,
     mut return_array: bool,
-) -> Result<AttentionMask, Exception> {
+) -> Result<AttentionMask<'a>> {
     let shape = h.shape();
     let t = shape[1]; // assume h has shape [B, T, D] ?
 
@@ -60,11 +57,8 @@ pub fn create_attention_mask(
         }
 
         if return_array {
-            return Ok(AttentionMask::MaskArray(create_causal_mask(
-                t,
-                offset,
-                window_size,
-            )?));
+            let mask = create_causal_mask(t, offset, window_size)?;
+            return Ok(AttentionMask::from_array(Cow::Owned(mask))?);
         } else {
             return Ok(AttentionMask::Causal);
         }

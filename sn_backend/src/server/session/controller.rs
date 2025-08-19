@@ -1,5 +1,5 @@
 use crate::db;
-use crate::error::{Error, Result, ResultAPI};
+use crate::error::{Error, ResultAPI};
 use crate::server::app_state::AppState;
 use axum::Json;
 use axum::extract::State;

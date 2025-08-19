@@ -3454,7 +3454,6 @@ dependencies = [
  "crossbeam",
  "glob",
  "hex",
- "itertools 0.14.0",
  "memmap2",
  "minijinja",
  "mlx-rs",
@@ -3466,7 +3465,6 @@ dependencies = [
  "sn_core",
  "thiserror",
  "tokenizers",
- "tokio",
  "tracing",
  "walkdir",
 ]

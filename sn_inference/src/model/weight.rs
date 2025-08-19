@@ -7,13 +7,11 @@ use glob::glob;
 use memmap2::MmapOptions;
 use mlx_rs::{Array, Dtype};
 use serde::Deserialize;
-use serde_json::json;
 use sn_core::server::payload::run_model_response_sse::RunModelResponseSSE;
 use sn_core::types::stream_data::StreamData;
 use std::collections::HashMap;
 use std::ffi::c_void;
 use std::fs::File;
-use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 use std::sync::Arc;
 use std::vec::Vec;
@@ -88,7 +86,7 @@ fn read_safetensors_header(mmap: &memmap2::Mmap) -> Result<(WeightJSON, usize)> 
 
 fn read_safetensors_weights(
     mmap: &memmap2::Mmap,
-    mut weights_json: WeightJSON,
+    weights_json: WeightJSON,
     offset_header: usize,
     callback: Option<PromptStreamCallback>,
 ) -> Result<HashMap<String, Tensor>> {
@@ -98,6 +96,7 @@ fn read_safetensors_weights(
 
     for (idx, (name, weight)) in weights_json.tensors.iter().enumerate() {
         let dtype = Dtype::from_string_unsafe(&weight.dtype);
+
         let shape = weight.shape.clone();
         let data_offsets = weight.data_offsets;
         let offset_start = base_offset + data_offsets[0] as usize;
@@ -113,12 +112,12 @@ fn read_safetensors_weights(
 
         if let Some(cb) = callback {
             let _ = cb.send(StreamData::for_run_model_sse_response(
-                (RunModelResponseSSE {
+                RunModelResponseSSE {
                     load_type: "loading_tensor".to_string(),
                     tensor_name: String::from(name),
                     tensor_index: idx + 1,
                     total_tensors: weights_json.tensors.len(),
-                }),
+                },
             ));
         }
 
@@ -143,6 +142,20 @@ fn read_safetensors_weights(
 
         let data =
             unsafe { Array::from_raw_data(data_slice.as_ptr() as *const c_void, &shape, dtype) };
+
+        /*let data = if dtype == Bfloat16  {
+            let u16_data: &[u16] = bytemuck::cast_slice(data_slice);
+            // Convert each u16 to bf16, then to f32
+            let bf16_data: Vec<bf16> = u16_data.iter().map(|&bits| bf16::from_bits(bits)).collect();
+            let f32_data: Vec<f32> = bf16_data.iter().map(|&v| v.to_f32()).collect();
+
+            Array::from_slice(
+                f32_data.as_ref(),
+                &shape
+            )
+        } else {
+            unsafe { Array::from_raw_data(data_slice.as_ptr() as *const c_void, &shape, dtype) }
+        };*/
 
         weights.insert(
             String::from(name),

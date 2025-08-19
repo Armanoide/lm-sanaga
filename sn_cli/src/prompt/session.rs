@@ -3,8 +3,6 @@ use crate::error::{Error, Result};
 use inquire::Text;
 use sn_core::server::payload::create_session_request::CreateSessionRequest;
 use sn_core::types::session::Session;
-use std::io;
-use std::io::BufRead;
 
 pub async fn prompt_session(cli_client: &CliClient) -> Result<Option<i32>> {
     let name = Text::new("Enter session name (or press Enter to use default): ").prompt();

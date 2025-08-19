@@ -1,12 +1,14 @@
 use serde_json;
+use std::convert::Infallible;
 use thiserror::Error;
-
-pub type Result<T> = std::result::Result<T, crate::error::Error>;
 
 #[derive(Debug, Error)]
 pub enum Error {
     #[error(transparent)]
     Core(#[from] sn_core::error::Error),
+
+    #[error(transparent)]
+    ErrorInfallible(#[from] Infallible),
 
     #[error("Invalid configuration: {0}")]
     InvalidConfig(String),
@@ -47,7 +49,7 @@ pub enum Error {
     #[error("Unsupported tokenizer format")]
     UnsupportedTokenizer,
 
-    #[error("MLX runtime exception")]
+    #[error("MLX runtime exception: {0}")]
     ExceptionMLX(#[from] mlx_rs::error::Exception),
 
     #[error("I/O error: {0}")]
@@ -112,13 +114,16 @@ pub enum Error {
     ModelRuntimeNotFoundWithId(String),
 
     #[error("MLX compute lock error")]
-    MLXComputeLock,
+    MLXComputeLock(String),
 
     #[error("Empty prompt generated")]
     EmptyPrompt,
 
     #[error("Model not found when generating text")]
     MissingModel,
+
+    #[error("Chat template not found when generating text")]
+    MissingChatTemplate,
 
     #[error("Tokenizer not found when generating text")]
     MissingTokenizer,
@@ -128,4 +133,42 @@ pub enum Error {
 
     #[error("Routine missing for model: {0}")]
     RoutineMissingModel(String),
+
+    #[error("Failed to find max padding length for encoding")]
+    PaddingFailedFindMax,
+
+    #[error("Failed to find padding token for encoding")]
+    MissingPadToken,
+
+    #[error("Unexpected mask shape: {0}")]
+    UnexpectedMaskShape(String),
+
+    #[error("{0}")]
+    ErrorScaledDotProductAttentionGQA(String),
 }
+
+pub type Result<T> = std::result::Result<T, crate::error::Error>;
+/*
+
+/// A helper trait to add file/line info automatically to any Result
+pub trait ResultExt<T> {
+    fn here(self) -> anyhow::Result<T>;
+}
+
+impl<T, E> ResultExt<T> for std::result::Result<T, E>
+where
+    E: std::error::Error + Send + Sync + 'static,
+{
+    fn here(self) {
+        self.with_context(|| format!("at {}:{}", file!(), line!()))
+    }
+}
+
+pub fn test( ) -> Result<()> {
+    // This is just a placeholder function to ensure the module compiles correctly.
+    // You can remove or modify this function as needed.
+
+    Err(Error::MLXComputeLock("d")).here();
+    Ok(())
+}
+*/

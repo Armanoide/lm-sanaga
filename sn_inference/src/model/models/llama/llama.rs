@@ -3,12 +3,11 @@ use crate::config::config_models::llama::LLaMAConfig;
 use crate::error::{Error, Result};
 use crate::factory::mask::create_attention_mask;
 use crate::mask::mask::AttentionMask;
-use crate::model::model::Model;
+use crate::model::model::{ForwardType, Model};
 use crate::model::models::llama::transformer_block::TransformerBlockLlama;
 use crate::model::weight::{Tensor, Weight};
 use crate::module::Module;
 use crate::quantized::Quantize;
-use crate::token::token_generator::TokenGenerator;
 use crate::utils::maybe_quantized::{MaybeQuantizedEmbedding, MaybeQuantizedLinear};
 use crate::utils::rms_norm::NormExt;
 use mlx_rs::Array;
@@ -17,7 +16,6 @@ use mlx_rs::module::Module as MLXModule;
 use mlx_rs::nn::RmsNorm;
 use mlx_rs::nn::{Embedding, Linear, LinearBuilder, RmsNormBuilder};
 use mlx_rs::quantization::{MaybeQuantized, Quantizable};
-use rayon::prelude::*;
 use sn_core::utils::rw_lock::RwLockExt;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
@@ -66,7 +64,6 @@ impl Module for ModelLLama {
 
     fn set_weight(&mut self, name: &str, _: &str, tensor: &Tensor) -> Result<()> {
         self.bytes += tensor.size;
-        println!("Setting weight: {} with size: {}", name, tensor.size);
         match name {
             "lm_head.weight" => return Ok(self.lm_head.update_weight(&tensor.data)),
             "lm_head.scales" => return Ok(self.lm_head.update_scales(&tensor.data)),
@@ -132,6 +129,7 @@ impl Model for ModelLLama {
         x: &Array,
         mask: Option<&AttentionMask>,
         caches: Option<ArcCacheList>,
+        _: &ForwardType,
     ) -> Result<Array> {
         let mut h = self.embed_tokens.forward(&x)?;
 

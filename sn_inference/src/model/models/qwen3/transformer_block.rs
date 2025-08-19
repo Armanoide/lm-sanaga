@@ -17,7 +17,6 @@ use std::rc::Rc;
 
 #[derive(Debug, Clone)]
 pub struct TransformerBlockQwen3 {
-    hidden_size: i32,
     self_attn: AttentionQwen3,
     mlp: MLPQwen3,
     input_layernorm: RmsNorm,
@@ -86,7 +85,6 @@ impl TransformerBlockQwen3 {
         .map_err(|e| Error::ExceptionMLX(e))?;
 
         Ok(TransformerBlockQwen3 {
-            hidden_size: qwen3_config.num_attention_heads,
             self_attn,
             mlp,
             input_layernorm,

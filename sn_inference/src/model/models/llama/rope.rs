@@ -1,6 +1,5 @@
 use crate::config::config_models::llama::LLaMARopeScalingConfig;
 use crate::error::{Error, Result};
-use crate::model::models::default::rope::BaseRope;
 use mlx_rs::ops::{arange, gt, logical_and, lt, power, r#where};
 use mlx_rs::{Array, rope};
 
@@ -10,7 +9,6 @@ pub struct RopeLlama {
     fregs: Array,
     dims: i32,
     traditional: bool,
-    max_position_embeddings: i32,
 }
 
 impl RopeLlama {
@@ -24,7 +22,6 @@ impl RopeLlama {
         let rope_config = rope_config.ok_or(Error::RopeConfigMissing)?;
 
         let dims = dims;
-        let max_position_embeddings = rope_config.original_max_position_embeddings;
         let traditional = traditional;
 
         let factor = rope_config.factor;
@@ -70,7 +67,6 @@ impl RopeLlama {
         Ok(RopeLlama {
             fregs: fregs_final,
             dims,
-            max_position_embeddings,
             traditional,
         })
     }
@@ -87,5 +83,3 @@ impl RopeLlama {
         .map_err(|e| Error::ExceptionMLX(e))
     }
 }
-
-impl BaseRope for RopeLlama {}

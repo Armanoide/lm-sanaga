@@ -18,6 +18,7 @@ impl Conversation {
             messages: vec![message],
         }
     }
+
     pub fn from_user_with_content(content: String) -> Self {
         let message = Message {
             role: MessageRole::User,

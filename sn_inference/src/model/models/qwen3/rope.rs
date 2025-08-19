@@ -1,8 +1,6 @@
 use crate::error::{Error, Result};
-use crate::model::models::default::rope::BaseRope;
 use mlx_rs::{Array, rope};
 
-const PI: f32 = std::f64::consts::PI as f32;
 #[derive(Clone, Debug)]
 pub struct RopeQwen3 {
     dims: i32,
@@ -34,5 +32,3 @@ impl RopeQwen3 {
         .map_err(|e| Error::ExceptionMLX(e))
     }
 }
-
-impl BaseRope for RopeQwen3 {}

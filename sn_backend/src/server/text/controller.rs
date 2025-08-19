@@ -1,34 +1,27 @@
 use crate::db;
-use crate::db::entities::message::{Convert, Model};
+use crate::db::entities::message::Convert;
 use crate::db::repository;
 use crate::db::repository::conversation::update_conversation_name;
-use crate::db::repository::message::{create_message, get_message_by_id};
+use crate::db::repository::message::create_message;
 use crate::error::Result;
 use crate::error::{Error, ResultAPIStream};
 use crate::server::app_state::AppState;
-use crate::utils::parse_json_model_id::parse_json_model_id;
 use crate::utils::sse_response_builder::SseResponseBuilder;
-use crate::utils::tokio_bridge::TokenBridge;
 use axum::Json;
-use axum::body::Body;
 use axum::extract::State;
 use axum::extract::rejection::JsonRejection;
-use axum::response::{IntoResponse, Response};
+use axum::response::IntoResponse;
 use crossbeam::channel::{Receiver, Sender, bounded};
-use futures::{SinkExt, StreamExt};
 use sea_orm::DatabaseConnection;
-use serde_json::{Value, json};
+use serde_json::json;
 use sn_core::server::payload::generate_text_request::GenerateTextRequest;
 use sn_core::server::payload::text_generated_metadata_response_sse::TextGeneratedMetadataResponseSSE;
 use sn_core::types::conversation::Conversation;
 use sn_core::types::message::{Message, MessageRole};
-use sn_core::types::message_stats::MessageStats;
 use sn_core::types::stream_data::StreamData;
 use sn_core::utils::rw_lock::RwLockExt;
 use sn_inference::model::model_runtime::GenerateTextResult;
-use std::collections::HashMap;
 use std::sync::Arc;
-use std::thread;
 use tracing::error;
 
 pub async fn create_or_get_conversation(
@@ -83,14 +76,13 @@ fn handle_error_generate_text(err: &String, tx_err: Option<Arc<Sender<StreamData
 async fn generate_title_conversation(
     state: Arc<AppState>,
     payload: Json<GenerateTextRequest>,
-    conversation_id: &i32,
+    conversation_id: i32,
 ) {
     let db = if let Some(db) = &state.db {
         db
     } else {
         return;
     };
-
     let generate_text_result = (|| {
         let guard = state.runner.read_lock("reading runner for resume")?;
         let conversation = Conversation::from_user_with_content(format!(
@@ -101,12 +93,11 @@ async fn generate_title_conversation(
             guard.generate_text(&payload.model_id, &conversation, None, None)?;
         Ok::<_, Error>(generate_text_result)
     })();
-    println!("generate_text_result: {:?}", generate_text_result);
     match generate_text_result {
         Ok(result) => {
             let (title_conversation, _) = result;
             let title_conversation = Message::sanitize_content(title_conversation);
-            let _ = update_conversation_name(db, conversation_id, title_conversation).await;
+            let _ = update_conversation_name(db, &conversation_id, title_conversation).await;
         }
         Err(err) => {
             error!("Failed to generate title for conversation: {}", err);
@@ -133,9 +124,6 @@ async fn store_generate_text_result(
     match create_message(db, &payload, &generate_text_result).await {
         Ok(message) => {
             if let (Some(message), Some(tx)) = (&message, tx) {
-                if payload.conversation_id.is_none() {
-                    generate_title_conversation(state, payload, &message.conversation_id).await;
-                }
                 let _ = tx.send(StreamData::for_text_generated_metadata_sse_response(
                     TextGeneratedMetadataResponseSSE {
                         prompt_tps: message.prompt_tps,
@@ -143,6 +131,10 @@ async fn store_generate_text_result(
                         conversation_id: message.conversation_id,
                     },
                 ));
+                if payload.conversation_id.is_none() {
+                    let conversation_id = message.conversation_id.clone();
+                    tokio::spawn(generate_title_conversation(state, payload, conversation_id));
+                }
             }
             message
         }

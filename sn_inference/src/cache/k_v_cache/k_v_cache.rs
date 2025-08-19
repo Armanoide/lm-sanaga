@@ -1,11 +1,9 @@
-use crate::error::Error;
 use crate::utils::mlx::mlx_compute_lock::MLX_COMPUTE_LOCK;
 use mlx_rs::Array;
 use mlx_rs::error::Exception;
 use mlx_rs::ops::indexing::{IndexMutOp, IndexOp};
-use mlx_rs::ops::{concatenate_axis, zeros_dtype};
-use mlx_rs::transforms::{async_eval, eval};
-use serde::{Deserialize, Serialize};
+use mlx_rs::ops::zeros_dtype;
+use mlx_rs::transforms::eval;
 use sn_core::utils::rw_lock::RwLockExt;
 use std::sync::{Arc, RwLock};
 use tracing::error;
@@ -16,9 +14,19 @@ pub type ArcCacheList = Arc<RwLock<Vec<ArcCacheItem>>>;
 pub struct KVCache {
     pub keys: Option<Array>,
     pub values: Option<Array>,
+    /// The current sequence length stored in this cache, in tokens.
+    ///
+    /// - Starts at 0 when the cache is empty.
+    /// - Increments by the number of new tokens added in `update_and_fetch`.
+    /// - Used as the **position offset** for rotary position embeddings (RoPE)
+    ///   so that queries/keys for newly generated tokens are rotated correctly.
+    /// - For example:
+    ///     - First forward pass with 8 tokens: `offset` becomes 8.
+    ///     - Next pass with 4 more tokens: `offset` becomes 12.
     pub offset: i32,
     pub step: i32,
     pub max_size: Option<i32>,
+    pub layer_idx: i32,
 }
 
 impl KVCache {
@@ -29,6 +37,7 @@ impl KVCache {
             offset: 0,
             step: 256,
             max_size: None,
+            layer_idx: 0,
         }
     }
 
@@ -146,7 +155,6 @@ unsafe impl Sync for KVCache {}
 #[test]
 fn test_kv_cache_update_and_fetch() {
     use mlx_rs::Dtype;
-    use mlx_rs::{Array, zeros_dtype};
 
     let batch = 1;
     let heads = 2;

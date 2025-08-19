@@ -2,14 +2,11 @@ use crate::error::{Error, ResultAPI, ResultAPIStream};
 use crate::server::app_state::AppState;
 use crate::utils::parse_json_model_id::parse_json_model_id;
 use crate::utils::sse_response_builder::SseResponseBuilder;
-use crate::utils::tokio_bridge::TokenBridge;
 use axum::Json;
-use axum::body::Body;
 use axum::extract::State;
 use axum::extract::rejection::JsonRejection;
-use axum::response::{IntoResponse, Response};
+use axum::response::IntoResponse;
 use crossbeam::channel::{Receiver, Sender, bounded};
-use futures::StreamExt;
 use serde_json::Value;
 use serde_json::json;
 use sn_core::server::payload::run_model_metadata_response_sse::RunModelMetadataResponseSSE;
@@ -143,7 +140,7 @@ pub async fn run_model(
     State(state): State<Arc<AppState>>,
     payload: std::result::Result<Json<RunModelRequest>, JsonRejection>,
 ) -> ResultAPIStream {
-    let payload = payload.map_err(|e| Error::ModelNameRequired)?;
+    let payload = payload.map_err(|_| Error::ModelNameRequired)?;
 
     if payload.stream.unwrap_or(false) {
         Ok(run_model_with_sse(state, payload).await?)

@@ -6,23 +6,22 @@ use crate::model::models::qwen3::rope::RopeQwen3;
 use crate::model::weight::Tensor;
 use crate::module::Module;
 use crate::quantized::Quantize;
+use crate::safe_quantize;
 use crate::utils::maybe_quantized::MaybeQuantizedLinear;
+use crate::utils::maybe_quantized::QuantizableParam;
 use crate::utils::rms_norm::NormExt;
 use crate::utils::scaled_dot_product_attention::scaled_dot_product_attention;
 use mlx_rs::Array;
 use mlx_rs::builder::Builder;
 use mlx_rs::module::Module as MLXModule;
 use mlx_rs::nn::{Linear, LinearBuilder, RmsNorm, RmsNormBuilder};
-use mlx_rs::quantization::{MaybeQuantized, Quantizable};
-use sn_core::utils::rw_lock::{RwLockExt, RwLockExtOpt};
+use mlx_rs::quantization::MaybeQuantized;
+use sn_core::utils::rw_lock::RwLockExt;
 use std::rc::Rc;
-
 #[derive(Clone, Debug)]
 pub struct AttentionQwen3 {
-    hidden_size: i32,
     n_heads: i32,
     n_kv_heads: i32,
-    head_dim: i32,
     scale: f64,
 
     q_proj: MaybeQuantized<Linear>,
@@ -36,10 +35,7 @@ pub struct AttentionQwen3 {
 
 impl Quantize for AttentionQwen3 {
     fn quantize(&mut self, group_size: i32, bits: i32) -> Result<()> {
-        self.q_proj = self.q_proj.clone().try_into_quantized(group_size, bits)?;
-        self.k_proj = self.k_proj.clone().try_into_quantized(group_size, bits)?;
-        self.v_proj = self.v_proj.clone().try_into_quantized(group_size, bits)?;
-        self.o_proj = self.o_proj.clone().try_into_quantized(group_size, bits)?;
+        safe_quantize!(self, group_size, bits, q_proj, k_proj, v_proj, o_proj,);
         Ok(())
     }
 }
@@ -51,6 +47,7 @@ impl Module for AttentionQwen3 {
         mask: Option<&AttentionMask>,
         cache: Option<ArcCacheItem>,
     ) -> Result<Array> {
+        let x = &x;
         let shape = x.shape();
         let b = shape[0];
         let l = shape[1];
@@ -59,7 +56,6 @@ impl Module for AttentionQwen3 {
         let mut keys = self.k_proj.forward(x)?;
         let mut values = self.v_proj.forward(x)?;
 
-        // Prepare the queries, keys and values for the attention computation
         queries = self.q_norm.forward(
             &queries
                 .reshape(&[b, l, self.n_heads, -1])?
@@ -93,17 +89,13 @@ impl Module for AttentionQwen3 {
             keys = self.rope.forward(&keys, 0)?;
         }
 
-        let output = scaled_dot_product_attention(
-            &queries,
-            &keys,
-            &values,
-            maybe_cache_ref.read_lock_mut("")?.as_deref(),
-            self.scale as f32,
-            mask,
-        )?;
+        let mut output =
+            scaled_dot_product_attention(&queries, &keys, &values, None, self.scale as f32, mask)?;
 
-        let output = output.transpose_axes(&[0, 2, 1, 3])?.reshape(&[b, l, -1])?;
-        Ok(self.o_proj.forward(&output)?)
+        output = output.transpose_axes(&[0, 2, 1, 3])?.reshape(&[b, l, -1])?;
+
+        let output = self.o_proj.forward(&output)?;
+        Ok(output)
     }
 
     fn set_weight(&mut self, name: &str, sub_name: &str, tensor: &Tensor) -> Result<()> {
@@ -149,7 +141,7 @@ impl AttentionQwen3 {
             ));
         }
 
-        let head_dim = hidden_size / n_heads;
+        let head_dim = qwen3_config.head_dim.unwrap_or(hidden_size / n_heads);
         let scale = 1.0 / (head_dim as f64).sqrt();
 
         let q_proj = MaybeQuantized::new(
@@ -169,7 +161,6 @@ impl AttentionQwen3 {
             }
             .build()?,
         );
-
         let v_proj = MaybeQuantized::new(
             LinearBuilder {
                 input_dims: hidden_size,
@@ -203,10 +194,8 @@ impl AttentionQwen3 {
         let rope = RopeQwen3::new(head_dim, qwen3_config.rope_theta, false)?;
 
         Ok(AttentionQwen3 {
-            hidden_size,
             n_heads,
             n_kv_heads,
-            head_dim,
             scale,
             q_proj,
             k_proj,

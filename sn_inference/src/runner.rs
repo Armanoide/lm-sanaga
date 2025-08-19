@@ -2,14 +2,11 @@ use crate::cache::k_v_cache::k_v_cache::ArcCacheList;
 use crate::cache::k_v_cache::k_v_cache_session::KvCacheSession;
 use crate::error::{Error, Result};
 use crate::factory::k_v_cache::create_cache_from_model_runtime;
-use crate::model::model_kind::ModelKind;
 use crate::model::model_runtime::{GenerateTextResult, ModelRuntime};
 use crate::token::token_stream_manager::PromptStreamCallback;
-use minijinja::ErrorKind::BadSerialization;
-use serde::{Deserialize, Serialize};
+use mlx_rs::Array;
 use sn_core::types::conversation::Conversation;
 use sn_core::utils::rw_lock::RwLockExt;
-use std::env::VarError;
 use std::ops::Add;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
@@ -68,7 +65,7 @@ impl Runner {
         &self,
         name: &str,
         callback: Option<PromptStreamCallback>,
-    ) -> Result<(String)> {
+    ) -> Result<String> {
         let path = get_base_path_models().add(name);
         let id = Self::generate_path_id(&path);
 
@@ -179,6 +176,27 @@ impl Runner {
         if let Some(model_runtime) = self.get_model_by_id(model_id) {
             let cache = self.get_session_cache(session_id, model_id)?;
             model_runtime.generate_text(conversation, cache, callback)
+        } else {
+            Err(Error::ModelRuntimeNotFoundWithId(model_id.to_string()))
+        }
+    }
+
+    pub fn generate_embeddings(&self, model_id: &str, inputs: &Vec<String>) -> Result<Array> {
+        if let Some(model_runtime) = self.get_model_by_id(model_id) {
+            Ok(model_runtime.generate_embeddings(inputs)?)
+        } else {
+            Err(Error::ModelRuntimeNotFoundWithId(model_id.to_string()))
+        }
+    }
+
+    pub fn generate_similarity(
+        &self,
+        model_id: &str,
+        queries: &Vec<String>,
+        documents: &Vec<String>,
+    ) -> Result<Array> {
+        if let Some(model_runtime) = self.get_model_by_id(model_id) {
+            Ok(model_runtime.generate_similarity(queries, documents)?)
         } else {
             Err(Error::ModelRuntimeNotFoundWithId(model_id.to_string()))
         }

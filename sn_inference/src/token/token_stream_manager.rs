@@ -9,20 +9,18 @@ use rayon::prelude::*;
 use sn_core::types::message_stats::{MessageStats, MessageStatsBuilder};
 use sn_core::types::stream_data::StreamData;
 use sn_core::utils::rw_lock::RwLockExt;
-use std::cell::RefCell;
 use std::rc::Rc;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, RwLock};
 use std::thread;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::Instant;
 use tracing::{debug, error};
 
 pub type PromptStreamCallback = Arc<Sender<StreamData>>;
 pub struct TokenStreamManager {
     tokenizer: Rc<Tokenizer>,
-    pub token_generator: Option<Arc<RwLock<TokenGenerator>>>,
     model: Arc<RwLock<ModelKind>>,
+    pub token_generator: Option<Arc<RwLock<TokenGenerator>>>,
     stop: bool,
-    prompt_len: usize,
     responses: Vec<TokenGeneratedInfo>,
     token_receiver: Option<Receiver<TokenGeneratedInfo>>,
 }
@@ -34,7 +32,6 @@ impl TokenStreamManager {
             tokenizer,
             token_generator: None,
             stop: false,
-            prompt_len: 0,
             responses: Vec::new(),
             token_receiver: None,
         }
@@ -79,11 +76,10 @@ impl TokenStreamManager {
         prompt: Vec<u32>,
         cache: ArcCacheList,
         callback: Option<PromptStreamCallback>,
-    ) -> Result<(String)> {
+    ) -> Result<String> {
         self.prelude_generate_text(prompt, cache.clone())?;
         let eot_ids = self.tokenizer.eot_ids();
         let header_token_ids = self.tokenizer.header_token_ids();
-        let mut stop = false;
 
         if let Some(_generator) = &mut self.token_generator {
             let rx = self
@@ -99,7 +95,7 @@ impl TokenStreamManager {
                 let _step_start = Instant::now();
 
                 // Check if any token matches EOT
-                stop = eot_ids.contains(gti.get_token());
+                self.stop = eot_ids.contains(gti.get_token());
                 if !has_header_start && header_token_ids.contains(gti.get_token()) {
                     has_header_start = true;
                 } else if !has_header_end
@@ -126,7 +122,7 @@ impl TokenStreamManager {
 
                 self.responses.push(gti);
 
-                if stop {
+                if self.stop {
                     break;
                 }
             }
@@ -137,7 +133,7 @@ impl TokenStreamManager {
         Ok(self.get_text())
     }
 
-    pub fn get_average_stats(&self) -> Result<Option<(MessageStats)>> {
+    pub fn get_average_stats(&self) -> Result<Option<MessageStats>> {
         if let Some(token_generator) = &self.token_generator {
             let total_generated_tokens = {
                 let context = "reading total_generated_tokens from token_generator";

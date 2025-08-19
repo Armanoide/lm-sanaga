@@ -1,25 +1,18 @@
 use crate::error::{Error, Result};
-use crate::model::model::Model;
+use crate::model::model::{ForwardType, Model};
 use crate::model::model_kind::ModelKind;
 use crate::token::token_generated_info::TokenGeneratedInfo;
-use crate::utils::mlx::metal_device_info::metal_device_info;
-use crate::utils::mlx::metal_is_available::metal_is_available;
-use crate::utils::mlx::set_wired_limit::set_wired_limit;
 use crossbeam::channel::Sender;
 use mlx_rs::Array;
 use mlx_rs::ops::concatenate;
 use mlx_rs::ops::indexing::{IndexOp, argmax_axis};
+use mlx_rs::transforms::async_eval;
 use mlx_rs::transforms::compile::clear_cache;
-use mlx_rs::transforms::{async_eval, async_eval_params, eval, eval_params};
-use once_cell::unsync::Lazy;
-use rayon::prelude::*;
 use rayon::prelude::*;
 use std::collections::HashSet;
 use std::sync::{Arc, RwLock};
-use std::thread;
-use std::time::{Instant, SystemTime, UNIX_EPOCH};
-use tokio::sync::Mutex;
-use tracing::{debug, error, info, warn};
+use std::time::Instant;
+use tracing::{debug, error, warn};
 
 pub type SamplerFn = Arc<dyn Fn(&Array) -> Result<Array> + Send + Sync>;
 
@@ -28,14 +21,39 @@ use crate::cache::k_v_cache::k_v_cache::ArcCacheList;
 use crate::utils::mlx::mlx_compute_lock::MLX_COMPUTE_LOCK;
 use sn_core::utils::rw_lock::RwLockExt;
 
+/*fn top_k_filter(logits: &Array, k: usize) -> Result<Array> {
+    // Convert to a Vec for sorting
+    let mut logits_vec = logits.as_slice::<f32>().to_vec();
+
+    // Find the k-th largest logit
+    let mut sorted = logits_vec.clone();
+    sorted.sort_by(|a, b| b.partial_cmp(a).unwrap());
+    let kth_value = *sorted.get(k - 1).unwrap_or(&f32::MIN);
+
+    // Mask logits below the k-th largest
+    for logit in logits_vec.iter_mut() {
+        if *logit < kth_value {
+            *logit = f32::NEG_INFINITY;
+        }
+    }
+
+    // Convert back into Array
+    let shape = logits.shape();
+    Ok(Array::from_slice(
+        logits_vec.as_ref(),
+        &[shape[0], shape[1]],
+    ))
+}*/
+
+#[derive(Clone, Debug, Default)]
 pub struct TokenGeneratorOpts {
     temperature: Option<f32>,
-    max_tokens: Option<usize>,
-    top_k: Option<usize>,
-    top_p: Option<f32>,
-    repetition_penalty: Option<f32>,
-    presence_penalty: Option<f32>,
-    frequency_penalty: Option<f32>,
+    //max_tokens: Option<usize>,
+    //top_k: Option<usize>,
+    //top_p: Option<f32>,
+    //repetition_penalty: Option<f32>,
+    //presence_penalty: Option<f32>,
+    //frequency_penalty: Option<f32>,
 }
 
 pub struct TokenGenerator {
@@ -48,11 +66,9 @@ pub struct TokenGenerator {
     prompt: Array,
     eot_ids: HashSet<u32>,
     stop: bool,
-    prompt_len: usize,
-    options: Option<TokenGeneratorOpts>,
+    options: TokenGeneratorOpts,
     token_sender: Option<Sender<TokenGeneratedInfo>>,
     pub total_generated_tokens: usize,
-    pub total_prompt_duration: f64,
     pub prefill_duration: f64,
     pub generation_duration: f64,
 }
@@ -77,14 +93,12 @@ impl TokenGenerator {
             max_tokens,
             logits_processors: Vec::new(),
             tokens: None,
-            prompt_len,
             sampler: default_sampler,
             prompt,
             eot_ids,
             stop: false,
-            options: None,
+            options: TokenGeneratorOpts::default(),
             total_generated_tokens: 0,
-            total_prompt_duration: 0.0,
             generation_duration: 0.0,
             prefill_duration: 0.0,
         })
@@ -93,13 +107,14 @@ impl TokenGenerator {
     fn model_call(
         &mut self,
         input_prompt: &Array,
-        input_embeddings: Option<&Array>,
+        _: Option<&Array>, // input_embeddings
     ) -> Result<Array> {
-        let context = "read model for forwarding";
+        let context = "TokenGenerator:model_call";
         let result = self.model.write_lock(context)?.forward_model(
             &input_prompt,
             None,
             Option::from(self.cache.clone()),
+            &ForwardType::Logits,
         )?;
         Ok(result)
     }
@@ -135,43 +150,36 @@ impl TokenGenerator {
 
         //Todo: quantize_cache_fn(&mut prompt_cache);
 
-        let temperature = 1;
+        let temperature = self.options.temperature.unwrap_or(1.0);
 
         let logits = &logits / temperature; // element-wise division
 
-        let logprobs = &logits - &logits.logsumexp(true)?;
+        // Convert logits to mutable array
+        let logits_mut = logits.clone();
+
+        // Apply repetition penalty
+        /*if let Some(tokens) = &self.tokens {
+            let penalty = 1.2; // tweak as needed
+            for token_id in tokens.as_slice::<i32>() {
+                let val = logits.index(*token_id) / penalty;
+                //  logits_mut.index_mut(token_id, val);
+            }
+        }*/
+
+        // Apply top-k filter
+        //logits_mut = top_k_filter(&logits_mut, 50)?;
+
+        let logprobs = &logits_mut - &logits_mut.logsumexp(true)?;
         let sampled = self.sampler.as_ref()(&logprobs)?;
         let result = (sampled, logprobs.squeeze_axes(&[0])?);
         Ok(result)
-    }
-
-    fn weird_limit(&self) -> Result<()> {
-        /*println!("//metal_is_available= {}", metal_is_available()?);
-        if metal_is_available()? {
-            let model_bytes = {
-                let context = "reading n_bytes of the model";
-                self.model.read_lock(context)?.get_model_bytes()
-            };
-            println!("//model_bytes= {:?}", model_bytes);
-            let device_info = metal_device_info()?;
-            println!("{:?}", device_info);
-            let max_recommended_size = device_info.max_recommended_working_set_size;
-            if model_bytes > (0.9 * (max_recommended_size as f64)) as u64 {
-                println!("//ici");
-                let model_mb = model_bytes / 1 << 20;
-                let max_rec_mb = max_recommended_size / 1 << 20;
-                //let old_limit = set_wired_limit(max_recommended_size)?;
-            }
-        }*/
-        //synchron
-        Ok(())
     }
 
     fn step_prefill(
         &mut self,
         mut prompt_input: Array,
         input_embeddings: Option<&Array>,
-    ) -> Result<(Array)> {
+    ) -> Result<Array> {
         let total_prompt_tokens = self.prompt.shape()[0];
         let mut prompt_processed_tokens = 0;
         let prefill_step_size = 256 / 2; // 128 tokens per step
@@ -220,9 +228,11 @@ impl TokenGenerator {
         let prompt_input = self.prompt.clone();
         let pre_fill_start = Instant::now();
         let prompt_input = self.step_prefill(prompt_input, input_embeddings)?;
-        let (mut y, mut logprobs) = self.forward_step(&prompt_input, input_embeddings)?;
+        let (mut y, logprobs) = self.forward_step(&prompt_input, input_embeddings)?;
         {
-            let _guard = MLX_COMPUTE_LOCK.lock().map_err(|e| Error::MLXComputeLock)?;
+            let _guard = MLX_COMPUTE_LOCK
+                .lock()
+                .map_err(|e| Error::MLXComputeLock(e.to_string()))?;
             async_eval([&y, &logprobs])?;
         }
         self.prefill_duration = pre_fill_start.elapsed().as_secs_f64();
@@ -236,10 +246,15 @@ impl TokenGenerator {
                 }
                 let (next_y, next_logprobs) = self.forward_step(&y, None)?;
                 {
-                    let _guard = MLX_COMPUTE_LOCK.lock().map_err(|e| Error::MLXComputeLock)?;
+                    let _guard = MLX_COMPUTE_LOCK
+                        .lock()
+                        .map_err(|e| Error::MLXComputeLock(e.to_string()))?;
                     async_eval([&next_y, &next_logprobs])?;
                 }
                 if n == 0 {
+                    let _guard = MLX_COMPUTE_LOCK
+                        .lock()
+                        .map_err(|e| Error::MLXComputeLock(e.to_string()))?;
                     y.eval()?;
                 }
                 if n == self.max_tokens || self.stop {
@@ -262,7 +277,6 @@ impl TokenGenerator {
                     clear_cache();
                 }
                 y = next_y;
-                logprobs = next_logprobs;
                 n += 1;
 
                 self.total_generated_tokens += 1;

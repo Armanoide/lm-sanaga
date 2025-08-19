@@ -1,5 +1,4 @@
 use crate::config::config_model::ConfigModelCommon;
-use crate::config::config_models::llama::LLaMAConfig;
 use crate::config::config_models::quantization_config::QuantizationConfig;
 use serde::{Deserialize, Serialize};
 
@@ -13,7 +12,7 @@ pub struct Qwen3Config {
     pub bos_token_id: Option<i32>,
 
     pub eos_token_id: i32,
-    pub head_dim: i32,
+    pub head_dim: Option<i32>,
     pub hidden_act: String,
     pub hidden_size: i32,
     pub initializer_range: f64,

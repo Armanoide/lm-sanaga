@@ -2,7 +2,7 @@ use crate::server::payload::run_model_metadata_response_sse::RunModelMetadataRes
 use crate::server::payload::run_model_response_sse::RunModelResponseSSE;
 use crate::server::payload::text_generated_metadata_response_sse::TextGeneratedMetadataResponseSSE;
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use serde_json::Value;
 use tracing::error;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "stream_type", content = "data")]

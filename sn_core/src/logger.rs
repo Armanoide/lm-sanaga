@@ -4,15 +4,12 @@ use tracing_subscriber::EnvFilter;
 pub fn init_tracing() {
     // Check for SANAGA_DEBUG environment variable
     let sanaga_debug = env::var("SANAGA_DEBUG").unwrap_or_else(|_| "false".to_string());
-
     // Set base filter depending on debug flag
     let default_level = if sanaga_debug == "true" {
         "debug"
     } else {
         "info"
     };
-
-    let default_level = "debug";
 
     // Allow override via RUST_LOG
     let env_filter =

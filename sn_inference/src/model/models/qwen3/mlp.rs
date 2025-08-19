@@ -43,7 +43,7 @@ impl Module for MLPQwen3 {
         _: Option<ArcCacheItem>,
     ) -> Result<Array> {
         // Apply gate projection and activation
-        let gated = silu(self.gate_proj.forward(x)?)?;
+        let gated = silu(&self.gate_proj.forward(x)?)?;
         // Apply up projection
         let up = self.up_proj.forward(x)?;
         // Element-wise multiply

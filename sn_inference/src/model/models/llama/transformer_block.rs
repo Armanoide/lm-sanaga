@@ -14,10 +14,8 @@ use mlx_rs::builder::Builder;
 use mlx_rs::module::Module as MLXModule;
 use mlx_rs::nn::{RmsNorm, RmsNormBuilder};
 use std::rc::Rc;
-
 #[derive(Debug, Clone)]
 pub struct TransformerBlockLlama {
-    hidden_size: i32,
     self_attn: AttentionLlama,
     mlp: MLPLlama,
     input_layernorm: RmsNorm,
@@ -86,7 +84,6 @@ impl TransformerBlockLlama {
         .map_err(|e| Error::ExceptionMLX(e))?;
 
         Ok(TransformerBlockLlama {
-            hidden_size: llama_config.num_attention_heads,
             self_attn,
             mlp,
             input_layernorm,

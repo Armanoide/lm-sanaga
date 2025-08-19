@@ -1,4 +1,3 @@
-
 #[macro_export]
 macro_rules! default_forward_transformer_block {
     (

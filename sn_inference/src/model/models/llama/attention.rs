@@ -13,15 +13,13 @@ use mlx_rs::builder::Builder;
 use mlx_rs::module::Module as MLXModule;
 use mlx_rs::nn::{Linear, LinearBuilder};
 use mlx_rs::quantization::{MaybeQuantized, Quantizable};
-use sn_core::utils::rw_lock::{RwLockExt, RwLockExtOpt};
+use sn_core::utils::rw_lock::RwLockExt;
 use std::rc::Rc;
 
 #[derive(Clone, Debug)]
 pub struct AttentionLlama {
-    hidden_size: i32,
     n_heads: i32,
     n_kv_heads: i32,
-    head_dim: i32,
     scale: f64,
 
     q_proj: MaybeQuantized<Linear>,
@@ -67,7 +65,7 @@ impl Module for AttentionLlama {
             .reshape(&[b, l, self.n_kv_heads, -1])?
             .transpose_axes(&[0, 2, 1, 3])?;
 
-        let mut maybe_cache_ref = cache.as_ref(); //.map(|rc| rc);
+        let mut maybe_cache_ref = cache.as_ref();
 
         if let Some(ref mut cache_ref) = maybe_cache_ref {
             let context = "reading cache for offset";
@@ -85,14 +83,8 @@ impl Module for AttentionLlama {
             keys = self.rope.forward(&keys, 0)?;
         }
 
-        let output = scaled_dot_product_attention(
-            &queries,
-            &keys,
-            &values,
-            maybe_cache_ref.read_lock_mut("")?.as_deref(),
-            self.scale as f32,
-            mask,
-        )?;
+        let output =
+            scaled_dot_product_attention(&queries, &keys, &values, None, self.scale as f32, mask)?;
 
         let output = output.transpose_axes(&[0, 2, 1, 3])?.reshape(&[b, l, -1])?;
         Ok(self.o_proj.forward(&output)?)
@@ -138,7 +130,7 @@ impl AttentionLlama {
             ));
         }
 
-        let head_dim = hidden_size / n_heads;
+        let head_dim = llama_config.head_dim.unwrap_or(hidden_size / n_heads);
         let scale = 1.0 / (head_dim as f64).sqrt();
 
         let q_proj = MaybeQuantized::new(
@@ -185,10 +177,8 @@ impl AttentionLlama {
         )?;
 
         Ok(AttentionLlama {
-            hidden_size,
             n_heads,
             n_kv_heads,
-            head_dim,
             scale,
             q_proj,
             k_proj,

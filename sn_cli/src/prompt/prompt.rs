@@ -78,7 +78,7 @@ pub async fn simple_prompt(cli_client: &CliClient, model_id: Arc<str>) -> Result
                 println!("{}", INFO_QUIT_PROMPT); // User pressed Ctrl+C
                 continue;
             }
-            Err(e) => {
+            Err(_) => {
                 println!("Failed to read input. Try again.");
                 continue;
             }

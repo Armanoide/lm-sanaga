@@ -10,5 +10,5 @@ use std::sync::RwLock;
 fn main() {
     init_tracing();
     let runner = Arc::new(RwLock::new(Runner::new()));
-    server::http_server::http_server(runner);
+    let _ = server::http_server::http_server(runner);
 }
