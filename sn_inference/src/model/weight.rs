@@ -143,20 +143,6 @@ fn read_safetensors_weights(
         let data =
             unsafe { Array::from_raw_data(data_slice.as_ptr() as *const c_void, &shape, dtype) };
 
-        /*let data = if dtype == Bfloat16  {
-            let u16_data: &[u16] = bytemuck::cast_slice(data_slice);
-            // Convert each u16 to bf16, then to f32
-            let bf16_data: Vec<bf16> = u16_data.iter().map(|&bits| bf16::from_bits(bits)).collect();
-            let f32_data: Vec<f32> = bf16_data.iter().map(|&v| v.to_f32()).collect();
-
-            Array::from_slice(
-                f32_data.as_ref(),
-                &shape
-            )
-        } else {
-            unsafe { Array::from_raw_data(data_slice.as_ptr() as *const c_void, &shape, dtype) }
-        };*/
-
         weights.insert(
             String::from(name),
             Tensor {

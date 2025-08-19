@@ -20,20 +20,13 @@ fn embedding(runner: &Runner) -> Result<(), Box<dyn std::error::Error>> {
 
     //let model_id = runner.load_model_name("models--mlx-community--Qwen3-Embedding-0.6B-4bit-DWQ", None)?;
     let model_id = runner.load_model_name("models--Qwen--Qwen3-Embedding-0.6B", None)?;
-    let embeddings = runner.generate_similarity(&model_id, &queries, &documents)?;
-    //println!("Query Embeddings: {:?}", embeddings);
-    /*let result = runner.similarity(
-        &model_id,
-        &query_embeddings,
-        &document_embeddings,
-    )?;*/
-    //println!("Similarity Results: {:?}", result);
+    let result = runner.generate_similarity(&model_id, &queries, &documents)?;
+    println!("Similarity Results: {:?}", result);
     Ok(())
 }
 fn chat(runner: &Runner) -> Result<(), Box<dyn std::error::Error>> {
     let conversation = Conversation::from_message(Message {
-        //content: String::from("Hi, my name is <name>."),
-        content: String::from("What is the capital of China?"),
+        content: String::from("Hi, my name is <name>."),
         role: MessageRole::User,
         stats: None,
     });
@@ -57,7 +50,3 @@ fn main() {
         Ok(_) => (),
     }
 }
-/*[
-"Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery:What is the capital of China?",
-"Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery:Explain gravity"
-]*/
