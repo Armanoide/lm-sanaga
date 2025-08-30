@@ -12,9 +12,8 @@ use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 use tracing::{error, info};
 
-//TODO: create a diriver and keep it from separate list to the model
-//TODO: create a model with manager to handle the driver
 const BASE_PATH_DEFAULT: &str = "~/.sanaga";
+//TODO: should be configurable
 const DEFAULT_DRIVER_MODEL_NAME: &str = "models--Qwen--Qwen3-1.7B-MLX-4bit";
 
 #[derive(Debug)]

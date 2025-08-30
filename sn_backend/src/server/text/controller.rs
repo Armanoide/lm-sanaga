@@ -23,7 +23,7 @@ use sn_core::types::stream_data::StreamData;
 use sn_core::utils::rw_lock::RwLockExt;
 use sn_inference::model::model_runtime::GenerateTextResult;
 use std::sync::Arc;
-use tracing::error;
+use tracing::{debug, error};
 
 pub async fn create_or_get_conversation(
     db: Option<&DatabaseConnection>,
@@ -85,6 +85,18 @@ async fn generate_message_embeddings(state: Arc<AppState>, message_id: i32) {
         }
     };
 }
+/// Handles post-processing tasks after storing a generated text message.
+///
+/// This function performs the following actions:
+/// - If the conversation is new (i.e., `payload.conversation_id` is `None`), it spawns a task to generate a conversation title.
+/// - Spawns tasks to generate embeddings for both the user and assistant messages.
+///
+/// # Arguments
+/// * `state` - Shared application state.
+/// * `payload` - The request payload containing information about the generated text.
+/// * `conversation_id` - The ID of the conversation.
+/// * `message_user_id` - The ID of the user's message.
+/// * `message_assistant_id` - The ID of the assistant's message.
 async fn handle_post_store_generate_text(
     state: Arc<AppState>,
     payload: Json<GenerateTextRequest>,
@@ -93,16 +105,16 @@ async fn handle_post_store_generate_text(
     message_assistant_id: i32,
 ) {
     let model_id = payload.model_id.clone();
-    println!(
+    debug!(
         "Handling post-store tasks for conversation {}",
         conversation_id
     );
     if payload.conversation_id.is_none() {
-        println!("Spawning task to generate conversation title");
+        debug!("Spawning task to generate conversation title");
         generate_title_conversation(state.clone(), model_id, conversation_id, message_user_id)
             .await;
     }
-    println!("Spawning tasks to generate message embeddings");
+    debug!("Spawning tasks to generate message embeddings");
     let ids = vec![message_user_id, message_assistant_id];
     let futures = ids
         .into_iter()
@@ -188,7 +200,7 @@ async fn store_generate_text_result(
                 let conversation_id = message_user.conversation_id.clone();
                 let message_user_id = message_user.id.clone();
                 let message_assistant_id = message_assistant.id.clone();
-                println!("Spawning task to generate conversation title and embeddings");
+                debug!("Spawning task to generate conversation title and embeddings");
                 tokio::spawn(handle_post_store_generate_text(
                     state,
                     payload,
