@@ -1,5 +1,5 @@
 use crate::client::CliClient;
-use crate::error::{Error, Result};
+use crate::error::{ErrorCli, Result};
 use crate::prompt::prompt::simple_prompt;
 use crate::utils::stream_response_bytes::stream_response_bytes;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -17,7 +17,7 @@ pub async fn handle(cli_client: &CliClient, model_name: Option<String>) -> Resul
                 stream: Some(true),
             })
             .await
-            .map_err(|e| Error::FailedToRunModel(model_name.clone(), e.to_string()))?;
+            .map_err(|e| ErrorCli::FailedToRunModel(model_name.clone(), e.to_string()))?;
 
         let mut stream = stream_response_bytes(response.bytes_stream()).await;
 
@@ -67,9 +67,9 @@ pub async fn handle(cli_client: &CliClient, model_name: Option<String>) -> Resul
             simple_prompt(cli_client, model_id).await?;
             Ok(())
         } else {
-            Err(Error::UnExpectedRunResponse(model_name))
+            Err(ErrorCli::UnExpectedRunResponse(model_name))
         }
     } else {
-        Err(Error::ModelNotInstalled(String::default()))
+        Err(ErrorCli::ModelNotInstalled(String::default()))
     }
 }

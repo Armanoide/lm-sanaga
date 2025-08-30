@@ -15,6 +15,11 @@ pub fn init_tracing() {
     let env_filter =
         EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(default_level));
 
-    // Initialize subscriber with pretty formatter (or .json() for structured logs)
-    tracing_subscriber::fmt().with_env_filter(env_filter).init();
+    // Initialize subscriber
+    tracing_subscriber::fmt()
+        .with_env_filter(env_filter)
+        .with_target(true) // show module path (e.g. lm_sanaga::error)
+        .with_file(true) // show filename
+        .with_line_number(true) // show line number
+        .init();
 }

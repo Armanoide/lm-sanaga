@@ -1,10 +1,10 @@
 use thiserror::Error;
-pub type Result<T> = std::result::Result<T, Error>;
+pub type Result<T> = std::result::Result<T, ErrorCli>;
 
 #[derive(Error, Debug)]
-pub enum Error {
+pub enum ErrorCli {
     #[error(transparent)]
-    Core(#[from] sn_core::error::Error),
+    Core(#[from] sn_core::error::ErrorCore),
 
     #[error("HTTP request failed: {0}")]
     Http(#[from] reqwest::Error),

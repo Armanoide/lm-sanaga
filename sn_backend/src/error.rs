@@ -1,19 +1,19 @@
-use axum::Json;
 use axum::extract::rejection::{JsonRejection, QueryRejection};
 use axum::response::{IntoResponse, Response};
+use axum::Json;
 use serde_json;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use thiserror::Error;
 use tracing::error;
 
-pub type ResultAPIStream = std::result::Result<Response, crate::error::Error>;
-pub type ResultAPI = std::result::Result<Json<Value>, crate::error::Error>;
-pub type Result<T> = std::result::Result<T, crate::error::Error>;
+pub type ResultAPIStream = std::result::Result<Response, crate::error::ErrorBackend>;
+pub type ResultAPI = std::result::Result<Json<Value>, crate::error::ErrorBackend>;
+pub type Result<T> = std::result::Result<T, crate::error::ErrorBackend>;
 
 #[derive(Debug, Error)]
-pub enum Error {
+pub enum ErrorBackend {
     #[error(transparent)]
-    Core(#[from] sn_core::error::Error),
+    Core(#[from] sn_core::error::ErrorCore),
 
     #[error(transparent)]
     Inference(#[from] sn_inference::error::Error),
@@ -48,30 +48,40 @@ pub enum Error {
     #[error("Conversation not found")]
     ConversationNotFound,
 
+    #[error("Message with id {0} not found")]
+    MessageNotFound(i32),
+
     #[error("Failed to generate text: {0}")]
     FailedToGenerateText(Value),
 
     #[error("Failed to build SSE response: {0}")]
     FailedBuildSSEResponse(String),
+
+    #[error("Failed to parse JSON: {0}")]
+    JsonError(#[from] serde_json::Error),
 }
 
-impl IntoResponse for Error {
+impl IntoResponse for ErrorBackend {
     fn into_response(self) -> axum::response::Response {
         let status = match &self {
-            Error::Core(_) => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-            Error::Inference(_) => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-            Error::DbError(_) => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-            Error::DotEnv(_) => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-            Error::EnvError(_) => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-            Error::FailedBuildSSEResponse(_) => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-            Error::ConversationNotFound => axum::http::StatusCode::BAD_REQUEST,
-            Error::ModelNameRequired => axum::http::StatusCode::BAD_REQUEST,
-            Error::InvalidRequest(_) => axum::http::StatusCode::BAD_REQUEST,
-            Error::JsonRejection(_) => axum::http::StatusCode::BAD_REQUEST,
-            Error::QueryRejection(_) => axum::http::StatusCode::BAD_REQUEST,
-            Error::IO(_) => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-            Error::NoDbAvailable => http::StatusCode::INTERNAL_SERVER_ERROR,
-            Error::FailedToGenerateText(_) => http::StatusCode::INTERNAL_SERVER_ERROR,
+            ErrorBackend::Core(_) => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            ErrorBackend::Inference(_) => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            ErrorBackend::DbError(_) => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            ErrorBackend::DotEnv(_) => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            ErrorBackend::JsonError(_) => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            ErrorBackend::EnvError(_) => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            ErrorBackend::FailedBuildSSEResponse(_) => {
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            }
+            ErrorBackend::MessageNotFound(_) => axum::http::StatusCode::BAD_REQUEST,
+            ErrorBackend::ConversationNotFound => axum::http::StatusCode::BAD_REQUEST,
+            ErrorBackend::ModelNameRequired => axum::http::StatusCode::BAD_REQUEST,
+            ErrorBackend::InvalidRequest(_) => axum::http::StatusCode::BAD_REQUEST,
+            ErrorBackend::JsonRejection(_) => axum::http::StatusCode::BAD_REQUEST,
+            ErrorBackend::QueryRejection(_) => axum::http::StatusCode::BAD_REQUEST,
+            ErrorBackend::IO(_) => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            ErrorBackend::NoDbAvailable => http::StatusCode::INTERNAL_SERVER_ERROR,
+            ErrorBackend::FailedToGenerateText(_) => http::StatusCode::INTERNAL_SERVER_ERROR,
         };
 
         let body = Json(json!({
@@ -81,7 +91,7 @@ impl IntoResponse for Error {
             }
         }));
 
-        error!("Error occurred: {}", self);
+        error!("ErrorBackend occurred: {}", self);
         (status, body).into_response()
     }
 }

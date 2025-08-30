@@ -1,7 +1,14 @@
 serve:
     cargo run --bin lm-sanaga
+serve_debug:
+   SANAGA_DEBUG=1 cargo run --bin lm-sanaga
 cli *args:
     cargo run --bin cli-sanaga -- {{args}}
+
+run_benchmark_inference:
+    cargo build --release --bin benchmark_inference 
+    cargo run --release --bin benchmark_inference
+
 
 hf_benchmark_inference:
     cargo build --release --bin benchmark_inference

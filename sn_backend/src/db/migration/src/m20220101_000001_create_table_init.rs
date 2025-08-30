@@ -80,6 +80,40 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
+      // Create message embedding table
+        manager
+            .create_table(
+                Table::create()
+                    .table(Embedding::Table)
+                    .if_not_exists()
+                    .col(pk_auto(Embedding::Id))
+                    .col(ColumnDef::new(Embedding::Data).json().null())
+                    .col(ColumnDef::new(Embedding::ConversationId).integer().not_null())
+                    .col(ColumnDef::new(Embedding::MessageId).integer().not_null())
+                    .col(
+                        ColumnDef::new(Embedding::CreatedAt)
+                            .timestamp()
+                            .not_null()
+                            .default(Expr::current_timestamp()),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_embedding_conversation")
+                            .from(Embedding::Table, Embedding::ConversationId)
+                            .to(Conversation::Table, Conversation::Id)
+                            .on_delete(ForeignKeyAction::Cascade),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_embedding_message")
+                            .from(Embedding::Table, Embedding::MessageId)
+                            .to(Message::Table, Message::Id)
+                            .on_delete(ForeignKeyAction::Cascade),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+
         Ok(())
     }
 
@@ -115,5 +149,15 @@ enum Message {
     PromptTps,
     GenerationTps,
     ConversationId,
+    CreatedAt,
+}
+
+#[derive(DeriveIden)]
+enum Embedding {
+    Table,
+    Id,
+    MessageId,
+    ConversationId,
+    Data,
     CreatedAt,
 }

@@ -1,4 +1,4 @@
-use crate::types::message::{Message, MessageRole};
+use crate::types::message::{Message, MessageBuilder, MessageRole};
 use crate::types::message_stats::MessageStats;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
@@ -20,11 +20,11 @@ impl Conversation {
     }
 
     pub fn from_user_with_content(content: String) -> Self {
-        let message = Message {
-            role: MessageRole::User,
-            content,
-            stats: None,
-        };
+        let message = MessageBuilder::default()
+            .role(MessageRole::User)
+            .content(content)
+            .build()
+            .unwrap_or_default();
         Conversation {
             name: None,
             id: None,
@@ -51,20 +51,21 @@ impl Conversation {
     }
 
     pub fn add_user_message(&mut self, content: String) {
-        let message = Message {
-            role: MessageRole::User,
-            content,
-            stats: None,
-        };
+        let message = MessageBuilder::default()
+            .role(MessageRole::User)
+            .content(content)
+            .build()
+            .unwrap_or_default();
         self.add_message(message);
     }
 
     pub fn add_assistant_message(&mut self, content: String, stats: Option<MessageStats>) {
-        let message = Message {
-            role: MessageRole::Assistant,
-            content,
-            stats,
-        };
+        let message = MessageBuilder::default()
+            .role(MessageRole::Assistant)
+            .content(content)
+            .stats(stats)
+            .build()
+            .unwrap_or_default();
         self.add_message(message);
     }
 

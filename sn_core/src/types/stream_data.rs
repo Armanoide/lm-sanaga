@@ -4,6 +4,7 @@ use crate::server::payload::text_generated_metadata_response_sse::TextGeneratedM
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tracing::error;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "stream_type", content = "data")]
 pub enum StreamDataContent {

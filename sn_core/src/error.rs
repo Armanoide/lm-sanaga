@@ -1,9 +1,9 @@
 use serde_json;
 use thiserror::Error;
-pub type Result<T> = std::result::Result<T, crate::error::Error>;
+pub type Result<T> = std::result::Result<T, crate::error::ErrorCore>;
 
 #[derive(Debug, Error)]
-pub enum Error {
+pub enum ErrorCore {
     #[error("Failed to parse integer value: {0}")]
     ParseIntError(#[from] std::num::ParseIntError),
 
@@ -24,4 +24,7 @@ pub enum Error {
 
     #[error("Unknown role: {0}")]
     UnknownMessageRole(String),
+
+    #[error("Uninitialize element: {0}")]
+    UninitializeElement(#[from] derive_builder::UninitializedFieldError),
 }

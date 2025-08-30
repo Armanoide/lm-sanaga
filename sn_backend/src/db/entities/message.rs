@@ -26,11 +26,19 @@ pub enum Relation {
         to = "super::conversation::Column::Id"
     )]
     Conversation,
+    #[sea_orm(has_one = "super::embedding::Entity")]
+    Embedding,
 }
 
 impl Related<super::conversation::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Conversation.def()
+    }
+}
+
+impl Related<super::embedding::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Embedding.def()
     }
 }
 
@@ -46,10 +54,12 @@ impl Convert for Vec<Model> {
             id: None,
             messages: self
                 .par_iter()
-                .map(|m| sn_core::types::message::Message {
-                    content: m.content.clone(),
-                    role: MessageRole::try_from(m.role.as_str()).unwrap_or(MessageRole::User),
-                    stats: None,
+                .map(|m| {
+                    sn_core::types::message::MessageBuilder::default()
+                        .content(m.content.clone())
+                        .role(MessageRole::try_from(m.role.as_str()).unwrap_or(MessageRole::User))
+                        .build()
+                        .unwrap_or_default()
                 })
                 .collect(),
         }

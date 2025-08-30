@@ -4,20 +4,21 @@ use crate::db::repository;
 use crate::db::repository::conversation::update_conversation_name;
 use crate::db::repository::message::create_message;
 use crate::error::Result;
-use crate::error::{Error, ResultAPIStream};
+use crate::error::{ErrorBackend, ResultAPIStream};
 use crate::server::app_state::AppState;
 use crate::utils::sse_response_builder::SseResponseBuilder;
-use axum::Json;
-use axum::extract::State;
 use axum::extract::rejection::JsonRejection;
+use axum::extract::State;
 use axum::response::IntoResponse;
-use crossbeam::channel::{Receiver, Sender, bounded};
+use axum::Json;
+use crossbeam::channel::{bounded, Receiver, Sender};
+use futures::future::join_all;
 use sea_orm::DatabaseConnection;
 use serde_json::json;
 use sn_core::server::payload::generate_text_request::GenerateTextRequest;
 use sn_core::server::payload::text_generated_metadata_response_sse::TextGeneratedMetadataResponseSSE;
 use sn_core::types::conversation::Conversation;
-use sn_core::types::message::{Message, MessageRole};
+use sn_core::types::message::{Message, MessageBuilder, MessageRole};
 use sn_core::types::stream_data::StreamData;
 use sn_core::utils::rw_lock::RwLockExt;
 use sn_inference::model::model_runtime::GenerateTextResult;
@@ -53,50 +54,103 @@ fn handle_error_generate_text(err: &String, tx_err: Option<Arc<Sender<StreamData
         let _ = tx_err.send(StreamData::for_stream_error(error).into());
     }
 }
+async fn generate_message_embeddings(state: Arc<AppState>, message_id: i32) {
+    let db = match &state.db {
+        Some(db) => db,
+        None => return,
+    };
 
+    let embeddings_result = (|| async {
+        let message = { repository::message::get_message_by_id(db, message_id) }.await;
+        let message = match message {
+            Ok(Some(message)) => message,
+            _ => return Err(ErrorBackend::MessageNotFound(message_id)),
+        };
+
+        let embeddings = state
+            .runner
+            .read_lock("read runner for generate embeddings")?
+            .generate_embeddings(&vec![message.content])
+            .map_err(|e| ErrorBackend::Inference(e))?;
+        Ok::<_, ErrorBackend>(embeddings.as_slice::<f32>().to_vec())
+    })()
+    .await;
+    match embeddings_result {
+        Ok(embeddings) => {
+            let _ = repository::embedding::create_embedding(db, message_id, embeddings.as_slice())
+                .await;
+        }
+        Err(err) => {
+            error!("Failed to generate embeddings: {}", err);
+        }
+    };
+}
+async fn handle_post_store_generate_text(
+    state: Arc<AppState>,
+    payload: Json<GenerateTextRequest>,
+    conversation_id: i32,
+    message_user_id: i32,
+    message_assistant_id: i32,
+) {
+    let model_id = payload.model_id.clone();
+    println!(
+        "Handling post-store tasks for conversation {}",
+        conversation_id
+    );
+    if payload.conversation_id.is_none() {
+        println!("Spawning task to generate conversation title");
+        generate_title_conversation(state.clone(), model_id, conversation_id, message_user_id)
+            .await;
+    }
+    println!("Spawning tasks to generate message embeddings");
+    let ids = vec![message_user_id, message_assistant_id];
+    let futures = ids
+        .into_iter()
+        .map(|id| generate_message_embeddings(state.clone(), id));
+    join_all(futures).await;
+}
 /// Attempts to generate a short title for a conversation using a text generation model,
 /// then updates the conversation's name in the database.
 ///
+/// # Overview
 /// This function:
 /// - Reads the AI runner from shared state.
-/// - Uses the provided prompt to generate a concise title (4 words).
+/// - Uses the specified model to generate a concise title for the conversation.
 /// - Updates the conversation record in the database with the generated title.
 ///
 /// # Parameters
 /// - `state`: Shared application state (`Arc<AppState>`) containing the AI runner and DB connection.
-/// - `payload`: JSON payload containing the prompt and model ID for generation.
+/// - `model_id`: Reference to the model ID string to use for title generation.
 /// - `conversation_id`: ID of the conversation to update.
-///
-/// # Behavior
-/// - If the database connection is missing (`state.db` is `None`), the function returns early.
-/// - If text generation fails, it logs an error but does not panic.
-/// - If title generation is successful, it attempts to update the conversation name asynchronously.
-///
-/// ```
+/// - `message_id`: ID of the message to use as context for title generation.
 async fn generate_title_conversation(
     state: Arc<AppState>,
-    payload: Json<GenerateTextRequest>,
+    model_id: Arc<str>,
     conversation_id: i32,
+    message_id: i32,
 ) {
-    let db = if let Some(db) = &state.db {
-        db
-    } else {
-        return;
+    let db = match &state.db {
+        Some(db) => db,
+        None => return,
     };
+    let message = match repository::message::get_message_by_id(db, message_id).await {
+        Ok(Some(message)) => message,
+        _ => return,
+    };
+
     let generate_text_result = (|| {
         let guard = state.runner.read_lock("reading runner for resume")?;
         let conversation = Conversation::from_user_with_content(format!(
             "resume with with 4 words only: {}",
-            payload.prompt
+            message.content
         ));
-        let generate_text_result =
-            guard.generate_text(&payload.model_id, &conversation, None, None)?;
-        Ok::<_, Error>(generate_text_result)
+        let generate_text_result = guard.generate_text(&model_id, &conversation, None, None)?;
+        Ok::<_, ErrorBackend>(generate_text_result)
     })();
     match generate_text_result {
         Ok(result) => {
             let (title_conversation, _) = result;
-            let title_conversation = Message::sanitize_content(title_conversation);
+            let title_conversation = Message::sanitize_content(title_conversation.as_str());
             let _ = update_conversation_name(db, &conversation_id, title_conversation).await;
         }
         Err(err) => {
@@ -114,29 +168,36 @@ async fn store_generate_text_result(
     payload: Json<GenerateTextRequest>,
     generate_text_result: GenerateTextResult,
     tx: Option<Arc<Sender<StreamData>>>,
-) -> Option<db::entities::message::Model> {
-    let db = if let Some(db) = &state.db {
-        db
-    } else {
-        return None;
+) -> Option<(db::entities::message::Model, db::entities::message::Model)> {
+    let db = match &state.db {
+        Some(db) => db,
+        None => return None,
     };
 
+    // we store the user message & reponse ia
     match create_message(db, &payload, &generate_text_result).await {
-        Ok(message) => {
-            if let (Some(message), Some(tx)) = (&message, tx) {
+        Ok(store_messages) => {
+            if let (Some((message_user, message_assistant)), Some(tx)) = (&store_messages, tx) {
                 let _ = tx.send(StreamData::for_text_generated_metadata_sse_response(
                     TextGeneratedMetadataResponseSSE {
-                        prompt_tps: message.prompt_tps,
-                        generation_tps: message.generation_tps,
-                        conversation_id: message.conversation_id,
+                        prompt_tps: message_assistant.prompt_tps,
+                        generation_tps: message_assistant.generation_tps,
+                        conversation_id: message_assistant.conversation_id,
                     },
                 ));
-                if payload.conversation_id.is_none() {
-                    let conversation_id = message.conversation_id.clone();
-                    tokio::spawn(generate_title_conversation(state, payload, conversation_id));
-                }
+                let conversation_id = message_user.conversation_id.clone();
+                let message_user_id = message_user.id.clone();
+                let message_assistant_id = message_assistant.id.clone();
+                println!("Spawning task to generate conversation title and embeddings");
+                tokio::spawn(handle_post_store_generate_text(
+                    state,
+                    payload,
+                    conversation_id,
+                    message_user_id,
+                    message_assistant_id,
+                ));
             }
-            message
+            store_messages
         }
         Err(err) => {
             handle_error_generate_text(&err.to_string(), tx);
@@ -164,7 +225,7 @@ async fn generate_text_with_sse(
                 payload.session_id,
                 Some(tx.clone()),
             )?;
-            Ok::<_, Error>(generate_text_result)
+            Ok::<_, ErrorBackend>(generate_text_result)
         })();
 
         let generate_text_result = if let Err(err) = generate_text_result {
@@ -190,25 +251,25 @@ async fn generate_text_with_json(
         state
             .runner
             .read_lock("reading runner for generate_text")
-            .map_err(|e| Error::Core(e))
+            .map_err(|e| ErrorBackend::Core(e))
             .and_then(|guard| {
                 guard
                     .generate_text(&payload.model_id, &conversation, payload.session_id, None)
-                    .map_err(|e| Error::Inference(e))
+                    .map_err(|e| ErrorBackend::Inference(e))
             })
     }?;
 
     let message = store_generate_text_result(state, payload, generate_text_result, None).await;
-    if let Some(message) = message {
+    if let Some((_, message_assistant)) = message {
         Ok(Json(json!({
-            "content": message.content,
-            "generation_tps": message.generation_tps,
-            "prompt_tps": message.prompt_tps,
-            "conversation_id": message.conversation_id,
+            "content": message_assistant.content,
+            "generation_tps": message_assistant.generation_tps,
+            "prompt_tps": message_assistant.prompt_tps,
+            "conversation_id": message_assistant.conversation_id,
         }))
         .into_response())
     } else {
-        Err(Error::FailedToGenerateText(json!({
+        Err(ErrorBackend::FailedToGenerateText(json!({
             "error": "Failed to save generated text",
             "reason": "Could not persist message to database or inference result"
         })))
@@ -241,7 +302,7 @@ async fn generate_text_with_json(
 /// - Delegates to either `generate_text_with_json` or `generate_text_with_sse`
 ///   depending on the `stream` flag.
 ///
-/// # Errors
+/// # ErrorBackends
 ///
 /// Returns a 4xx or 5xx error if:
 /// - The input payload is invalid.
@@ -253,11 +314,13 @@ pub async fn generate_text(
 ) -> ResultAPIStream {
     let payload = payload?;
     let mut conversation = create_or_get_conversation(state.db.as_ref(), &payload).await?;
-    conversation.messages.push(Message {
-        role: MessageRole::User,
-        content: payload.prompt.clone(),
-        stats: None,
-    });
+    conversation.messages.push(
+        MessageBuilder::default()
+            .content(payload.prompt.clone())
+            .role(MessageRole::User)
+            .build()
+            .map_err(|e| ErrorBackend::Core(e.into()))?,
+    );
 
     if payload.stream.unwrap_or(false) {
         generate_text_with_sse(state, payload, conversation).await

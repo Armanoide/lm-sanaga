@@ -5,7 +5,7 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum Error {
     #[error(transparent)]
-    Core(#[from] sn_core::error::Error),
+    Core(#[from] sn_core::error::ErrorCore),
 
     #[error(transparent)]
     ErrorInfallible(#[from] Infallible),
@@ -145,6 +145,17 @@ pub enum Error {
 
     #[error("{0}")]
     ErrorScaledDotProductAttentionGQA(String),
+
+    #[error(
+        "ANNStore: invalid embedding for id {id}: expected dimension {expected_dim}, got {actual_dim}"
+    )]
+    AnnInvalidEmbedding {
+        id: i32,
+        expected_dim: usize,
+        actual_dim: usize,
+    },
+    #[error("AnnStore: duplicate insert id {0}")]
+    AnnDuplicateInsertId(i32),
 }
 
 pub type Result<T> = std::result::Result<T, crate::error::Error>;

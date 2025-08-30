@@ -1,5 +1,5 @@
 use crate::db;
-use crate::error::{Error, Result};
+use crate::error::{ErrorBackend, Result};
 use sea_orm::ColumnTrait;
 use sea_orm::QueryFilter;
 use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, ModelTrait, QueryOrder, Set};
@@ -83,7 +83,7 @@ pub async fn get_conversations_by_session_id(
 /// - `Ok(())` if the operation succeeded or the conversation was not found.
 /// - `Err` if there was a database error during lookup or deletion.
 ///
-/// # Errors
+/// # ErrorBackends
 /// Returns a `DbErr` (or your crate's error type via `Result`) if:
 /// - The conversation lookup fails.
 /// - The deletion fails.
@@ -114,10 +114,10 @@ pub async fn delete_conversation_by_id(db: &DatabaseConnection, id: &i32) -> Res
 ///
 /// # Returns
 /// - `Ok(Model)` with the updated conversation on success.
-/// - `Err(Error::ConversationNotFound)` if the conversation does not exist.
+/// - `Err(ErrorBackend::ConversationNotFound)` if the conversation does not exist.
 /// - `Err(DbErr)` if the database update fails.
 ///
-/// # Errors
+/// # ErrorBackends
 /// This function returns an error if:
 /// - The conversation is not found.
 /// - There is a database failure during the update.
@@ -131,7 +131,7 @@ pub async fn update_conversation_name(
     let conversation = db::entities::conversation::Entity::find_by_id(*id)
         .one(db)
         .await?
-        .ok_or_else(|| Error::ConversationNotFound)?;
+        .ok_or_else(|| ErrorBackend::ConversationNotFound)?;
 
     let mut conversation: db::entities::conversation::ActiveModel = conversation.into();
     conversation.name = Set(Some(name.trim().replace('\n', "").replace('\r', "")));

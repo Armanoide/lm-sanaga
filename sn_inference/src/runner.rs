@@ -12,9 +12,14 @@ use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 use tracing::{error, info};
 
+//TODO: create a diriver and keep it from separate list to the model
+//TODO: create a model with manager to handle the driver
 const BASE_PATH_DEFAULT: &str = "~/.sanaga";
+const DEFAULT_DRIVER_MODEL_NAME: &str = "models--Qwen--Qwen3-1.7B-MLX-4bit";
+
 #[derive(Debug)]
 pub struct Runner {
+    pub driver: Option<Arc<RwLock<ModelRuntime>>>,
     pub models: Arc<RwLock<Vec<Arc<ModelRuntime>>>>,
     pub session_caches: Arc<RwLock<Vec<KvCacheSession>>>,
 }
@@ -41,6 +46,10 @@ fn get_base_path() -> String {
     )
 }
 
+fn get_base_path_driver() -> String {
+    get_base_path().add("/driver/")
+}
+
 fn get_base_path_models() -> String {
     get_base_path().add("/models/")
 }
@@ -50,11 +59,24 @@ fn create_cache(model_runtime: Arc<ModelRuntime>) -> Result<ArcCacheList> {
 }
 
 impl Runner {
-    pub fn new() -> Self {
-        Runner {
+    pub fn new() -> Result<Self> {
+        let driver_id = String::from("driver");
+        let driver_path = get_base_path_driver().add(DEFAULT_DRIVER_MODEL_NAME);
+        let driver = match ModelRuntime::load_with_path(&driver_path, &driver_id, None) {
+            Ok(driver) => Some(Arc::new(RwLock::new(driver))),
+            Err(e) => {
+                error!(
+                    "Failed to load default driver model from path {}: {}",
+                    driver_path, e
+                );
+                None
+            }
+        };
+        Ok(Runner {
+            driver,
             models: Arc::new(RwLock::new(Vec::new())),
             session_caches: Arc::new(RwLock::new(Vec::new())),
-        }
+        })
     }
 
     fn generate_path_id(salt: &String) -> String {
@@ -181,24 +203,25 @@ impl Runner {
         }
     }
 
-    pub fn generate_embeddings(&self, model_id: &str, inputs: &Vec<String>) -> Result<Array> {
-        if let Some(model_runtime) = self.get_model_by_id(model_id) {
+    pub fn generate_embeddings(&self, inputs: &Vec<String>) -> Result<Array> {
+        if let Some(model_runtime) = &self.driver {
+            let model_runtime = model_runtime.read_lock("generate_embeddings")?;
             Ok(model_runtime.generate_embeddings(inputs)?)
         } else {
-            Err(Error::ModelRuntimeNotFoundWithId(model_id.to_string()))
+            Err(Error::ModelRuntimeNotFoundWithId(String::from("driver")))
         }
     }
 
     pub fn generate_similarity(
         &self,
-        model_id: &str,
         queries: &Vec<String>,
         documents: &Vec<String>,
     ) -> Result<Array> {
-        if let Some(model_runtime) = self.get_model_by_id(model_id) {
+        if let Some(model_runtime) = &self.driver {
+            let model_runtime = model_runtime.read_lock("generate_similarity")?;
             Ok(model_runtime.generate_similarity(queries, documents)?)
         } else {
-            Err(Error::ModelRuntimeNotFoundWithId(model_id.to_string()))
+            Err(Error::ModelRuntimeNotFoundWithId(String::from("driver")))
         }
     }
 

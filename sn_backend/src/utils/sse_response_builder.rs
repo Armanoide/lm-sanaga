@@ -1,4 +1,4 @@
-use crate::error::{Error, ResultAPIStream};
+use crate::error::{ErrorBackend, ResultAPIStream};
 use crate::utils::tokio_bridge::TokenBridge;
 use axum::body::Body;
 use axum::response::{IntoResponse, Response};
@@ -39,20 +39,20 @@ impl SseResponseBuilder {
     /// # Returns
     /// * `ResultAPIStream` — a streaming HTTP response ready to be returned from an axum handler.
     ///
-    /// # Errors
+    /// # ErrorBackends
     /// Returns a `FailedBuildSSEResponse` error if the HTTP response construction fails.
     pub fn build(self) -> ResultAPIStream {
         let bridge = TokenBridge::new(self.rx);
         let stream = bridge
             .into_stream()
-            .map(|data| Ok::<_, Error>(format!("data: {}\n\n", data.to_json())));
+            .map(|data| Ok::<_, ErrorBackend>(format!("data: {}\n\n", data.to_json())));
 
         let body = Body::from_stream(stream);
 
         Ok(Response::builder()
             .header("Content-Type", "text/event-stream")
             .body(body)
-            .map_err(|e| Error::FailedBuildSSEResponse(e.to_string()))
+            .map_err(|e| ErrorBackend::FailedBuildSSEResponse(e.to_string()))
             .into_response())
     }
 }

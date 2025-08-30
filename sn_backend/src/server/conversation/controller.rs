@@ -1,6 +1,6 @@
 use crate::db;
 use crate::db::entities::conversation::Convert;
-use crate::error::{Error, ResultAPI};
+use crate::error::{ErrorBackend, ResultAPI};
 use crate::server::app_state::AppState;
 use axum::Json;
 use axum::extract::{Path, State};
@@ -20,7 +20,7 @@ pub async fn get_session_conversation_list(
     State(state): State<Arc<AppState>>,
     Path(session_id): axum::extract::Path<i32>,
 ) -> ResultAPI {
-    let db = state.db.as_ref().ok_or(Error::NoDbAvailable)?;
+    let db = state.db.as_ref().ok_or(ErrorBackend::NoDbAvailable)?;
 
     let conversations =
         db::repository::conversation::get_conversations_by_session_id(&db, session_id).await?;

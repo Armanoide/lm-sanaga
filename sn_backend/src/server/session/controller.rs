@@ -1,5 +1,5 @@
 use crate::db;
-use crate::error::{Error, ResultAPI};
+use crate::error::{ErrorBackend, ResultAPI};
 use crate::server::app_state::AppState;
 use axum::Json;
 use axum::extract::State;
@@ -17,6 +17,6 @@ pub async fn create_session(
         let session = db::repository::session::create_session(db, payload).await?;
         Ok(Json(json!(session)))
     } else {
-        Err(Error::NoDbAvailable)
+        Err(ErrorBackend::NoDbAvailable)
     }
 }

@@ -6,7 +6,7 @@ use std::collections::HashMap;
 pub async fn handle(cli_client: &CliClient) -> Result<()> {
     let response = cli_client.ps_model().await?;
     let models: Vec<HashMap<String, Value>> =
-        serde_json::from_str(&response).map_err(|e| sn_core::error::Error::from(e))?;
+        serde_json::from_str(&response).map_err(|e| sn_core::error::ErrorCore::from(e))?;
     match models.len() {
         0 => {
             println!("No models running.");

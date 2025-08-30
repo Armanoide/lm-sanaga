@@ -1,7 +1,7 @@
 use crate::db::entities;
 use crate::db::repository::conversation::{create_conversation, get_conversation_by_id};
 use crate::db::repository::session::get_session;
-use crate::error::{Error, Result};
+use crate::error::{ErrorBackend, Result};
 use axum::Json;
 use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, ModelTrait, QueryOrder, Set};
 use sn_core::server::payload::generate_text_request::GenerateTextRequest;
@@ -27,7 +27,7 @@ pub async fn create_message(
     db: &DatabaseConnection,
     payload: &Json<GenerateTextRequest>,
     generate_text_result: &GenerateTextResult,
-) -> Result<Option<entities::message::Model>> {
+) -> Result<Option<(entities::message::Model, entities::message::Model)>> {
     let GenerateTextRequest {
         session_id,
         conversation_id,
@@ -63,7 +63,7 @@ pub async fn create_message(
         role: Set(MessageRole::User.to_string()),
         ..Default::default()
     };
-    let _ = new_message_user.insert(db).await?;
+    let new_message_user = new_message_user.insert(db).await?;
 
     let stats = &generate_text_result.1.clone().unwrap_or_default();
 
@@ -76,7 +76,8 @@ pub async fn create_message(
         role: Set(MessageRole::Assistant.to_string()),
         ..Default::default()
     };
-    Ok(Some(new_message_assistant.insert(db).await?))
+    let new_message_assistant = new_message_assistant.insert(db).await?;
+    Ok(Some((new_message_user, new_message_assistant)))
 }
 
 /// Retrieves a single message by its ID from the database.
@@ -96,7 +97,7 @@ pub async fn get_message_by_id(
     entities::message::Entity::find_by_id(message_id)
         .one(db)
         .await
-        .map_err(Error::from)
+        .map_err(ErrorBackend::from)
 }
 
 /// Retrieves all messages associated with a conversation ID from the request payload,

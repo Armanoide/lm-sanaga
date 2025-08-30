@@ -1,5 +1,5 @@
 use crate::client::CliClient;
-use crate::error::{Error, Result};
+use crate::error::{ErrorCli, Result};
 use inquire::Text;
 use sn_core::server::payload::create_session_request::CreateSessionRequest;
 use sn_core::types::session::Session;
@@ -10,7 +10,7 @@ pub async fn prompt_session(cli_client: &CliClient) -> Result<Option<i32>> {
     let name = match name {
         Ok(name) => name,
         Err(e) => {
-            return Err(Error::FailedCreateSession(e.to_string()));
+            return Err(ErrorCli::FailedCreateSession(e.to_string()));
         }
     };
 

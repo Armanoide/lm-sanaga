@@ -26,7 +26,7 @@ pub async fn prompt_conversation(
 
     let response = cli_client.list_conversation(session_id).await?;
     let mut conversations: Vec<Conversation> =
-        serde_json::from_str(&response).map_err(|e| sn_core::error::Error::from(e))?;
+        serde_json::from_str(&response).map_err(|e| sn_core::error::ErrorCore::from(e))?;
 
     // Add a placeholder "New Conversation" at the top of the list
     conversations.insert(

@@ -4,3 +4,4 @@ use serde::{Deserialize, Serialize};
 pub struct CreateSessionRequest {
     pub name: Option<String>,
 }
+

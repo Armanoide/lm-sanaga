@@ -1,28 +1,33 @@
-use crate::error::{Error, Result};
+use crate::error::{ErrorCore, Result};
 use crate::types::message_stats::MessageStats;
+use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use tracing::error;
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, Builder)]
+#[builder(build_fn(error = "crate::error::ErrorCore"))]
 pub struct Message {
+    #[builder(default)]
+    pub id: i32,
     pub content: String,
     pub role: MessageRole,
+    #[builder(default)]
     pub stats: Option<MessageStats>,
+    #[builder(default)]
+    pub embeddings: Vec<f32>,
 }
 
 impl Message {
-    pub fn sanitize_content(s: String) -> String {
-        let mut m = Message {
-            stats: None,
-            role: MessageRole::Assistant,
-            content: s,
-        };
-        m.remove_think();
-        m.content
+    pub fn sanitize_content(s: &str) -> String {
+        Self::remove_think(s)
     }
-    pub fn remove_think(&mut self) {
-        if let Some(end_pos) = self.content.find("</think>") {
+
+    pub fn remove_think(content: &str) -> String {
+        if let Some(end_pos) = content.find("</think>") {
             let after_think = end_pos + "</think>".len();
-            self.content = self.content[after_think..].trim_start().to_string();
+            content[after_think..].trim_start().to_string()
+        } else {
+            content.to_string()
         }
     }
 }
@@ -55,7 +60,7 @@ impl MessageRole {
 }
 
 impl TryFrom<&str> for MessageRole {
-    type Error = Error;
+    type Error = ErrorCore;
     fn try_from(role: &str) -> Result<MessageRole> {
         match role {
             "user" => Ok(MessageRole::User),
@@ -64,7 +69,7 @@ impl TryFrom<&str> for MessageRole {
             _ => {
                 let format_err = format!("Unknown message role: {}", role);
                 error!(format_err);
-                Err(Error::UnknownMessageRole(format_err))
+                Err(ErrorCore::UnknownMessageRole(format_err))
             }
         }
     }
@@ -76,36 +81,24 @@ mod tests {
 
     #[test]
     fn test_remove_think_tag_present() {
-        let mut msg = Message {
-            content: "<think>\nReasoning here\n</think>\nFinal output.".to_string(),
-            role: MessageRole::Assistant,
-            stats: None,
-        };
-        msg.remove_think();
-        assert_eq!(msg.content, "Final output.");
+        assert_eq!(
+            Message::remove_think("<think>\nReasoning here\n</think>\nFinal output."),
+            "Final output."
+        );
     }
 
     #[test]
     fn test_remove_think_tag_not_present() {
         let original = "Just normal content.";
-        let mut msg = Message {
-            content: original.to_string(),
-            role: MessageRole::User,
-            stats: None,
-        };
-        msg.remove_think();
-        assert_eq!(msg.content, original);
+        assert_eq!(Message::remove_think(original), original);
     }
 
     #[test]
     fn test_remove_think_tag_with_leading_newline() {
-        let mut msg = Message {
-            content: "<think>\nThought\n</think>\n\n\nResponse.".to_string(),
-            role: MessageRole::Assistant,
-            stats: None,
-        };
-        msg.remove_think();
-        assert_eq!(msg.content, "Response.");
+        assert_eq!(
+            Message::remove_think("\n<think>\nThought process\n</think>\n\nResponse."),
+            "Response."
+        );
     }
 
     #[test]
@@ -136,11 +129,11 @@ mod tests {
 
     #[test]
     fn test_from_message_to_vec() {
-        let msg = Message {
-            content: "Hello".to_string(),
-            role: MessageRole::User,
-            stats: None,
-        };
+        let msg = MessageBuilder::default()
+            .content("Hello".to_string())
+            .role(MessageRole::User)
+            .build()
+            .unwrap();
         let vec: Vec<Message> = msg.clone().into();
         assert_eq!(vec.len(), 1);
         assert_eq!(vec[0].content, "Hello");

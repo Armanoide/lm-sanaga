@@ -1,4 +1,4 @@
-use crate::error::{Error, Result};
+use crate::error::{ErrorCli, Result};
 use reqwest::{Client, Response};
 use sn_core::server::payload::create_session_request::CreateSessionRequest;
 use sn_core::server::payload::generate_text_request::GenerateTextRequest;
@@ -33,9 +33,9 @@ impl CliClient {
             }
             Err(e) => {
                 if e.is_connect() {
-                    Err(Error::ConnectionRefused(self.base_url.clone()))
+                    Err(ErrorCli::ConnectionRefused(self.base_url.clone()))
                 } else {
-                    Err(Error::Http(e))
+                    Err(ErrorCli::Http(e))
                 }
             }
         }

@@ -16,6 +16,8 @@ pub struct Model {
 pub enum Relation {
     #[sea_orm(has_many = "super::message::Entity")]
     Messages,
+    #[sea_orm(has_many = "super::embedding::Entity")]
+    Embeddings,
     #[sea_orm(
         belongs_to = "super::session::Entity",
         from = "Column::SessionId",
@@ -33,6 +35,12 @@ impl Related<super::message::Entity> for Entity {
 impl Related<super::session::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Session.def()
+    }
+}
+
+impl Related<super::embedding::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Embeddings.def()
     }
 }
 

@@ -13,9 +13,9 @@ use crate::token::token_stream_manager::{PromptStreamCallback, TokenStreamManage
 use crate::tokenizer::tokenizer::Tokenizer;
 use crate::utils::mlx::similarity::similarity_cos;
 use crate::utils::tokenizer::pad_encode_batch::pad_encode_batch;
-use mlx_rs::Array;
 use mlx_rs::ops::indexing::IndexOp;
 use mlx_rs::ops::stack;
+use mlx_rs::Array;
 use serde::{Deserialize, Serialize};
 use sn_core::types::conversation::Conversation;
 use sn_core::types::message_stats::MessageStats;

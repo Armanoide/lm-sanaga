@@ -1,4 +1,4 @@
-use crate::error::{Error, ResultAPI, ResultAPIStream};
+use crate::error::{ErrorBackend, ResultAPI, ResultAPIStream};
 use crate::server::app_state::AppState;
 use crate::utils::parse_json_model_id::parse_json_model_id;
 use crate::utils::sse_response_builder::SseResponseBuilder;
@@ -79,7 +79,7 @@ pub async fn run_model_with_sse(
         let model_id = (|| {
             let guard = state.runner.write_lock("launching model")?;
             let model_id = guard.load_model_name(&payload.model_name, Some(tx.clone()))?;
-            Ok::<_, Error>(model_id)
+            Ok::<_, ErrorBackend>(model_id)
         })();
         match model_id {
             Ok(model_id) => {
@@ -131,16 +131,16 @@ pub async fn run_model_with_json(
 ///
 /// # Returns
 /// - `ResultAPIStream`: Either a streaming SSE response or a JSON response with the model ID.
-///   Errors are handled and returned using the `Error` type.
+///   ErrorBackends are handled and returned using the `ErrorBackend` type.
 ///
-/// # Errors
+/// # ErrorBackends
 /// - Returns `ModelNameRequired` if the request payload is missing or invalid.
 /// - Returns appropriate inference or internal errors if model loading fails.
 pub async fn run_model(
     State(state): State<Arc<AppState>>,
     payload: std::result::Result<Json<RunModelRequest>, JsonRejection>,
 ) -> ResultAPIStream {
-    let payload = payload.map_err(|_| Error::ModelNameRequired)?;
+    let payload = payload.map_err(|_| ErrorBackend::ModelNameRequired)?;
 
     if payload.stream.unwrap_or(false) {
         Ok(run_model_with_sse(state, payload).await?)
