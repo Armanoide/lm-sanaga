@@ -52,7 +52,7 @@ impl MessageService {
         let mut agg = MessageAggregate::new(conversation.and_then(|c| c.id));
         let use_case = GenerateTextUseCase::new(self.runner.clone());
 
-        agg.add_user_message(&req);
+        let _ = agg.add_user_message(&req)?;
         let result = use_case
             .generate(stream.as_ref(), agg, req.model_id.clone(), req.session_id)
             .await?;

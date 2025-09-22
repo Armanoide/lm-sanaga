@@ -13,7 +13,9 @@ pub struct Message {
     pub conversation_id: Option<i32>,
     pub content: String,
     pub role: MessageRole,
+    #[builder(default)]
     pub stats: Option<MessageStats>,
+    #[builder(default)]
     pub embeddings: Vec<f32>,
 }
 

@@ -39,8 +39,9 @@ impl GenerateTextUseCase {
         let task = tokio::spawn(async move {
             let tx_err = tx.clone();
             let guard = runner.read_lock("reading runner for generate_text")?;
+            let conversation = agg.to_conversation_core()?;
             let generate_text_result =
-                guard.generate_text(&model_id, &agg.to_conversation_core()?, session_id, tx);
+                guard.generate_text(&model_id, &conversation, session_id, tx);
             if let (Err(e), Some(tx_err)) = (&generate_text_result, tx_err) {
                 error!("{}", e);
                 let error = format!("Failed to generate text: {}", e);

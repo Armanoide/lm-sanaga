@@ -10,8 +10,11 @@ use crate::types::{
 #[derive(Debug, Clone, Default, Deserialize, Serialize, Builder)]
 #[builder(build_fn(error = "crate::error::ErrorCore"))]
 pub struct Conversation {
+    #[builder(default)]
     pub name: Option<String>,
+    #[builder(default)]
     pub id: Option<i32>,
+    #[builder(default)]
     pub messages: Vec<Message>,
 }
 
