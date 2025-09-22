@@ -12,14 +12,20 @@ pub type Result<T> = std::result::Result<T, crate::error::ErrorBackend>;
 
 #[derive(Debug, Error)]
 pub enum ErrorBackend {
+    #[error("HTTP request failed: {0}")]
+    Http(#[from] reqwest::Error),
+
+    #[error("Could not connect to server at {0} — is it running?")]
+    ConnectionRefused(String),
+
     #[error(transparent)]
     Core(#[from] sn_core::error::ErrorCore),
 
     #[error(transparent)]
     Inference(#[from] sn_inference::error::Error),
 
-    #[error("Model name is required")]
-    ModelNameRequired,
+    #[error("Required input: {0}")]
+    RequiredInput(String),
 
     #[error("{0}")]
     InvalidRequest(String),
@@ -59,6 +65,21 @@ pub enum ErrorBackend {
 
     #[error("Failed to parse JSON: {0}")]
     JsonError(#[from] serde_json::Error),
+
+    #[error("No ANN client available")]
+    NoAnnClientAvailable,
+
+    #[error("transparent")]
+    JoinError(#[from] tokio::task::JoinError),
+
+    #[error("Failed to perisit: {0}")]
+    FailedToPersist(String),
+
+    #[error("Message background param not found: {0}")]
+    MessageBackgroundParamNotFound(String),
+
+    #[error("Failed to run model: {0}")]
+    FailedToRunModel(String),
 }
 
 impl IntoResponse for ErrorBackend {
@@ -73,15 +94,22 @@ impl IntoResponse for ErrorBackend {
             ErrorBackend::FailedBuildSSEResponse(_) => {
                 axum::http::StatusCode::INTERNAL_SERVER_ERROR
             }
+            ErrorBackend::NoAnnClientAvailable => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
             ErrorBackend::MessageNotFound(_) => axum::http::StatusCode::BAD_REQUEST,
             ErrorBackend::ConversationNotFound => axum::http::StatusCode::BAD_REQUEST,
-            ErrorBackend::ModelNameRequired => axum::http::StatusCode::BAD_REQUEST,
+            ErrorBackend::RequiredInput(_) => axum::http::StatusCode::BAD_REQUEST,
             ErrorBackend::InvalidRequest(_) => axum::http::StatusCode::BAD_REQUEST,
             ErrorBackend::JsonRejection(_) => axum::http::StatusCode::BAD_REQUEST,
             ErrorBackend::QueryRejection(_) => axum::http::StatusCode::BAD_REQUEST,
             ErrorBackend::IO(_) => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
             ErrorBackend::NoDbAvailable => http::StatusCode::INTERNAL_SERVER_ERROR,
             ErrorBackend::FailedToGenerateText(_) => http::StatusCode::INTERNAL_SERVER_ERROR,
+            ErrorBackend::Http(_) => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            ErrorBackend::JoinError(_) => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            ErrorBackend::ConnectionRefused(_) => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            ErrorBackend::FailedToPersist(_) => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            ErrorBackend::MessageBackgroundParamNotFound(_) => axum::http::StatusCode::BAD_REQUEST,
+            ErrorBackend::FailedToRunModel(_) => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
         };
 
         let body = Json(json!({

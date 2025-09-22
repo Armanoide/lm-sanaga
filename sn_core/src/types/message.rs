@@ -9,11 +9,11 @@ use tracing::error;
 pub struct Message {
     #[builder(default)]
     pub id: i32,
+    #[builder(default)]
+    pub conversation_id: Option<i32>,
     pub content: String,
     pub role: MessageRole,
-    #[builder(default)]
     pub stats: Option<MessageStats>,
-    #[builder(default)]
     pub embeddings: Vec<f32>,
 }
 

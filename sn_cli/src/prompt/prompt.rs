@@ -6,7 +6,7 @@ use crate::utils::stream_response_bytes::stream_response_bytes;
 use crate::utils::typewriter::typewriter;
 use inquire::{InquireError, Text};
 use serde::Deserialize;
-use sn_core::server::payload::generate_text_request::GenerateTextRequest;
+use sn_core::server::payload::backend::generate_text_request::GenerateTextRequest;
 use sn_core::types::stream_data::{StreamData, StreamDataContent};
 use std::sync::Arc;
 

@@ -1,12 +1,16 @@
 use crate::error::{ErrorCli, Result};
 use reqwest::{Client, Response};
-use sn_core::server::payload::create_session_request::CreateSessionRequest;
-use sn_core::server::payload::generate_text_request::GenerateTextRequest;
-use sn_core::server::payload::run_model_request::RunModelRequest;
+use sn_core::server::payload::backend::create_session_request::CreateSessionRequest;
+use sn_core::server::payload::backend::generate_text_request::GenerateTextRequest;
+use sn_core::server::payload::backend::run_model_request::RunModelRequest;
+use sn_core::server::routes::{
+    BackendApiMessage, BackendApiModel, BackendApiSession, BackendConversationApi,
+};
 
 pub struct CliClient {
     client: Client,
     base_url: String,
+    base_url_api: String,
 }
 
 impl CliClient {
@@ -15,6 +19,7 @@ impl CliClient {
         CliClient {
             client,
             base_url: base_url.to_string(),
+            base_url_api: format!("{}{}", base_url.to_string(), "/api"),
         }
     }
 
@@ -33,7 +38,7 @@ impl CliClient {
             }
             Err(e) => {
                 if e.is_connect() {
-                    Err(ErrorCli::ConnectionRefused(self.base_url.clone()))
+                    Err(ErrorCli::ConnectionRefused(self.base_url_api.clone()))
                 } else {
                     Err(ErrorCli::Http(e))
                 }
@@ -42,28 +47,41 @@ impl CliClient {
     }
 
     pub async fn list_model(&self) -> Result<String> {
-        let url = format!("{}/api/v1/models", self.base_url);
+        let url = format!(
+            "{}{}",
+            self.base_url_api,
+            BackendApiModel::List.path().as_str()
+        );
         let result = self.client.get(&url).send().await;
         Ok(self.handle_response(result).await?)
     }
 
     pub async fn list_conversation(&self, session_id: &i32) -> Result<String> {
         let url = format!(
-            "{}/api/v1/sessions/{}/conversations",
-            self.base_url, session_id
+            "{}{}",
+            self.base_url_api,
+            BackendConversationApi::List.path(Some(session_id)).as_str()
         );
         let result = self.client.get(&url).send().await;
         Ok(self.handle_response(result).await?)
     }
 
     pub async fn ps_model(&self) -> Result<String> {
-        let url = format!("{}/api/v1/models/ps", self.base_url);
+        let url = format!(
+            "{}{}",
+            self.base_url_api,
+            BackendApiModel::ListRunning.path().as_str()
+        );
         let result = self.client.get(&url).send().await;
         Ok(self.handle_response(result).await?)
     }
 
     pub async fn run_model(&self, json: &RunModelRequest) -> Result<Response> {
-        let url = format!("{}/api/v1/models/run", self.base_url);
+        let url = format!(
+            "{}{}",
+            self.base_url_api,
+            BackendApiModel::Run.path().as_str()
+        );
         let result = self
             .client
             .post(&url)
@@ -74,7 +92,11 @@ impl CliClient {
         Ok(result)
     }
     pub async fn send_prompt(&self, json: &GenerateTextRequest) -> Result<Response> {
-        let url = format!("{}/api/v1/texts/generate", self.base_url);
+        let url = format!(
+            "{}{}",
+            self.base_url_api,
+            BackendApiMessage::Generate.path().as_str()
+        );
         let result = self
             .client
             .post(&url)
@@ -87,7 +109,11 @@ impl CliClient {
     }
 
     pub async fn stop_model(&self, model_id: &String) -> Result<String> {
-        let url = format!("{}/api/v1/models/stop", self.base_url);
+        let url = format!(
+            "{}{}",
+            self.base_url_api,
+            BackendApiModel::Stop.path().as_str()
+        );
         let result = self
             .client
             .post(&url)
@@ -98,7 +124,11 @@ impl CliClient {
     }
 
     pub async fn create_session(&self, request: &CreateSessionRequest) -> Result<String> {
-        let url = format!("{}/api/v1/sessions", self.base_url);
+        let url = format!(
+            "{}{}",
+            self.base_url_api,
+            BackendApiSession::Create.path().as_str()
+        );
         let result = self
             .client
             .post(&url)

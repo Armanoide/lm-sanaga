@@ -27,4 +27,7 @@ pub enum ErrorCore {
 
     #[error("Uninitialize element: {0}")]
     UninitializeElement(#[from] derive_builder::UninitializedFieldError),
+
+    #[error("Invalid action: {0}")]
+    InvalidAction(String),
 }

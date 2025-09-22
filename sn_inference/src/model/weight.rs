@@ -7,7 +7,7 @@ use glob::glob;
 use memmap2::MmapOptions;
 use mlx_rs::{Array, Dtype};
 use serde::Deserialize;
-use sn_core::server::payload::run_model_response_sse::RunModelResponseSSE;
+use sn_core::server::payload::backend::run_model_response::RunModelResponseSSE;
 use sn_core::types::stream_data::StreamData;
 use std::collections::HashMap;
 use std::ffi::c_void;

@@ -79,6 +79,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "ann-sanaga"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "crossbeam",
+ "dotenv",
+ "futures",
+ "http",
+ "rayon",
+ "sea-orm",
+ "serde",
+ "serde_json",
+ "sn_core",
+ "thiserror",
+ "tokio",
+ "tokio-stream",
+ "tower-http",
+ "tracing",
+]
+
+[[package]]
 name = "anstream"
 version = "0.6.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1957,6 +1978,7 @@ dependencies = [
  "futures",
  "http",
  "rayon",
+ "reqwest",
  "sea-orm",
  "serde",
  "serde_json",

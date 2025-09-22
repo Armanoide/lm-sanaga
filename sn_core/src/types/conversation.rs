@@ -1,9 +1,14 @@
-use crate::types::message::{Message, MessageBuilder, MessageRole};
-use crate::types::message_stats::MessageStats;
+use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+use crate::types::{
+    message::{Message, MessageBuilder, MessageRole},
+    message_stats::MessageStats,
+};
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize, Builder)]
+#[builder(build_fn(error = "crate::error::ErrorCore"))]
 pub struct Conversation {
     pub name: Option<String>,
     pub id: Option<i32>,

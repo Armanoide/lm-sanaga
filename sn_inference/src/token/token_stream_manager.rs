@@ -4,7 +4,7 @@ use crate::model::model_kind::ModelKind;
 use crate::token::token_generated_info::TokenGeneratedInfo;
 use crate::token::token_generator::TokenGenerator;
 use crate::tokenizer::tokenizer::Tokenizer;
-use crossbeam::channel::{Receiver, Sender, bounded};
+use crossbeam::channel::{bounded, Receiver, Sender};
 use rayon::prelude::*;
 use sn_core::types::message_stats::{MessageStats, MessageStatsBuilder};
 use sn_core::types::stream_data::StreamData;

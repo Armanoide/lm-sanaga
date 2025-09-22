@@ -1,23 +1,20 @@
-use crate::db::connection::get_connection;
+use crate::clients::ann::AnnClient;
 use crate::error::{ErrorBackend, Result};
+use crate::infrastructure::db::connection::get_connection;
+use crate::interfaces::{conversation, message, model, session};
 use crate::server::app_state::AppState;
-use crate::server::{conversation, model, session, text};
 use axum::http::StatusCode;
-use sn_inference::ann::TinyAnnStore;
+use sn_core::server::defauft_config::{
+    DEFAULT_SERVER_BACKEND_HOST, DEFAULT_SERVER_BACKEND_PORT, DEFAULT_SERVER_BACKEND_PROTOCOL,
+};
+use sn_core::server::routes::print_all_backend_api_paths;
 use sn_inference::runner::Runner;
 use std::env;
 use std::sync::{Arc, RwLock};
 use tower_http::trace::{
     DefaultMakeSpan, DefaultOnFailure, DefaultOnRequest, DefaultOnResponse, TraceLayer,
 };
-use tracing::log::warn;
 use tracing::{error, info, Level};
-
-/// Default server configuration constants.
-const DEFAULT_SERVER_HOST: &str = "127.0.0.1";
-const DEFAULT_SERVER_PORT: &str = "3000";
-const DEFAULT_SERVER_PROTOCOL: &str = "http";
-
 /// Simple fallback handler for unmatched routes.
 async fn fallback() -> (StatusCode, &'static str) {
     (StatusCode::NOT_FOUND, "Not Found")
@@ -36,27 +33,27 @@ async fn fallback() -> (StatusCode, &'static str) {
 /// - Adds tracing for incoming requests and failures.
 /// - Binds to configured host/port and starts listening.
 #[tokio::main]
-pub async fn http_server(
-    runner: Arc<RwLock<Runner>>,
-    ann_store: Arc<RwLock<TinyAnnStore>>,
-) -> Result<()> {
+pub async fn http_server_backend(runner: Arc<RwLock<Runner>>) -> Result<()> {
     // Attempt to connect to the database
-    let db = get_connection().await.unwrap_or_else(|e| {
-        warn!("Failed to connect to the database: {}", e);
-        None
-    });
-
-    let host = env::var("SERVER_HOST").unwrap_or(String::from(DEFAULT_SERVER_HOST));
-    let port = env::var("SERVER_PORT").unwrap_or(String::from(DEFAULT_SERVER_PORT));
-    let protocol = env::var("SERVER_PROTOCOL").unwrap_or(String::from(DEFAULT_SERVER_PROTOCOL));
+    let db = match get_connection().await? {
+        Some(db) => db,
+        _ => return Err(ErrorBackend::NoDbAvailable),
+    };
+    let ann = AnnClient::new();
+    let host = env::var("SERVER_BACKEND_HOST").unwrap_or(String::from(DEFAULT_SERVER_BACKEND_HOST));
+    let port = env::var("SERVER_BACKEND_PORT").unwrap_or(String::from(DEFAULT_SERVER_BACKEND_PORT));
+    let protocol = env::var("SERVER_BACKEND_PROTOCOL")
+        .unwrap_or(String::from(DEFAULT_SERVER_BACKEND_PROTOCOL));
     // Initialize shared application state
-    let app_state = Arc::new(AppState::new(runner, db, ann_store));
+    let app_state = Arc::new(AppState::new(runner, db, ann));
     let routes_api = axum::Router::new()
         .merge(model::route::routes())
-        .merge(text::route::routes())
+        .merge(message::route::routes())
         .merge(session::route::routes())
         .merge(conversation::route::routes())
         .with_state(app_state.clone());
+
+    print_all_backend_api_paths();
 
     // Build versioned API routes
     let router = axum::Router::new()

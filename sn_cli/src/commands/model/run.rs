@@ -3,7 +3,7 @@ use crate::error::{ErrorCli, Result};
 use crate::prompt::prompt::simple_prompt;
 use crate::utils::stream_response_bytes::stream_response_bytes;
 use indicatif::{ProgressBar, ProgressStyle};
-use sn_core::server::payload::run_model_request::RunModelRequest;
+use sn_core::server::payload::backend::run_model_request::RunModelRequest;
 use sn_core::types::stream_data::{StreamData, StreamDataContent};
 
 pub async fn handle(cli_client: &CliClient, model_name: Option<String>) -> Result<()> {
@@ -12,7 +12,7 @@ pub async fn handle(cli_client: &CliClient, model_name: Option<String>) -> Resul
         let mut pb: Option<ProgressBar> = None;
 
         let response = cli_client
-            .run_model(&RunModelRequest {
+            .run_model(&RunModelRequest::Start {
                 model_name: model_name.clone(),
                 stream: Some(true),
             })

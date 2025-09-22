@@ -1,7 +1,7 @@
 use crate::client::CliClient;
 use crate::error::{ErrorCli, Result};
 use inquire::Text;
-use sn_core::server::payload::create_session_request::CreateSessionRequest;
+use sn_core::server::payload::backend::create_session_request::CreateSessionRequest;
 use sn_core::types::session::Session;
 
 pub async fn prompt_session(cli_client: &CliClient) -> Result<Option<i32>> {

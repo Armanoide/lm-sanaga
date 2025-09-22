@@ -5,6 +5,10 @@ serve_debug:
 cli *args:
     cargo run --bin cli-sanaga -- {{args}}
 
+ann:
+  cargo build --bin ann-sanaga
+  cargo run --bin ann-sanaga
+
 run_benchmark_inference:
     cargo build --release --bin benchmark_inference 
     cargo run --release --bin benchmark_inference

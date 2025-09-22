@@ -3,7 +3,7 @@
 static ALLOC: dhat::Alloc = dhat::Alloc;
 
 use sn_core::types::conversation::Conversation;
-use sn_core::types::message::{Message, MessageBuilder, MessageRole};
+use sn_core::types::message::{MessageBuilder, MessageRole};
 use sn_inference::runner::Runner;
 
 fn similarity(runner: &Runner) -> Result<(), Box<dyn std::error::Error>> {
