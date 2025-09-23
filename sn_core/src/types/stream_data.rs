@@ -45,12 +45,13 @@ impl StreamData {
         }
     }
 
-    pub fn for_metadata_text_generated_sse_response(content: RunModelMetadataResponseSSE) -> Self {
+    pub fn for_metadata_run_model_sse_response(content: RunModelMetadataResponseSSE) -> Self {
         StreamData {
             content: StreamDataContent::RunModelMetadataResponseSSE(content),
             ..Default::default()
         }
     }
+
     pub fn for_text_generated_metadata_sse_response(
         content: TextGeneratedMetadataResponseSSE,
     ) -> Self {

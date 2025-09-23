@@ -11,7 +11,7 @@ use sn_core::{
 };
 use sn_inference::runner::Runner;
 use std::sync::{Arc, RwLock};
-use tracing::error;
+use tracing::{debug, error};
 
 use crate::{
     application::conversation::service::ConversationService,
@@ -23,7 +23,6 @@ pub struct MessageService {
     service_conversation: Arc<ConversationService>,
     service_background: Arc<MessageBackgroundService>,
     runner: Arc<RwLock<Runner>>,
-    repo_message: Arc<MessageRepository>,
 }
 
 impl MessageService {
@@ -39,7 +38,6 @@ impl MessageService {
             service_embedding,
         ));
         MessageService {
-            repo_message,
             service_conversation,
             runner,
             service_background,
@@ -143,18 +141,26 @@ impl MessageBackgroundService {
     }
 
     async fn handle_persist_message(&self, agg: MessageAggregate) -> Result<(Message, Message)> {
-        if let (Some(assistant_message), Some(user_message), Some(conversation_id)) = (
+        debug!("Persisting messages to the database...");
+        if let (
+            Some(assistant_message),
+            Some(user_message),
+            Some(conversation_id),
+            Some(model_id),
+        ) = (
             agg.get_assistant_message(),
             agg.get_user_message(),
             agg.get_conversation_id(),
+            agg.get_model_id(),
         ) {
             let (user, assistant) = self
                 .repo_message
                 .create(
                     &conversation_id,
-                    assistant_message.content.clone(),
-                    assistant_message.stats.clone(),
-                    user_message.content.clone(),
+                    assistant_message.content,
+                    assistant_message.stats,
+                    user_message.content,
+                    model_id.to_string(),
                 )
                 .await?;
             return Ok((user.into_message(), assistant.into_message()));
@@ -165,7 +171,8 @@ impl MessageBackgroundService {
     }
 
     async fn handle_background_tasks(&self, agg: MessageAggregate) {
-        let _ = || async {
+        let root = || async {
+            debug!("Starting background tasks for message processing...");
             let model_id = &agg.get_model_id().ok_or_else(|| {
                 ErrorBackend::MessageBackgroundParamNotFound("model_id".to_string())
             })?;
@@ -187,6 +194,9 @@ impl MessageBackgroundService {
             join_all(futures).await;
             Ok::<_, ErrorBackend>(())
         };
+        root().await.err().map(|e| {
+            error!("Error in background tasks for message processing: {}", e);
+        });
     }
 
     pub fn execute(self: Arc<Self>, output: GenerateTextOutput) -> GenerateTextOutput {
@@ -195,7 +205,7 @@ impl MessageBackgroundService {
                 let agg_clone = agg.clone();
                 let this = self;
                 tokio::spawn(async move {
-                    this.handle_background_tasks(agg_clone.clone());
+                    this.handle_background_tasks(agg_clone.clone()).await;
                     Ok::<_, ErrorBackend>(agg_clone)
                 });
                 GenerateTextOutput::Json(agg)
@@ -208,8 +218,9 @@ impl MessageBackgroundService {
                 let this = self;
                 if let Some(fut) = completion {
                     tokio::spawn(async move {
+                        debug!("Streaming generation completed. Starting background tasks...");
                         let agg = fut.await?;
-                        this.handle_background_tasks(agg);
+                        this.handle_background_tasks(agg).await;
                         Ok::<_, ErrorBackend>(())
                     });
                 }

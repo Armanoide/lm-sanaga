@@ -30,6 +30,7 @@ impl MessageRepository {
         assistant_content: String,
         assistant_stats: Option<MessageStats>,
         user_content: String,
+        model_id: String,
     ) -> Result<(
         domain::message::entity::Model,
         domain::message::entity::Model,
@@ -38,6 +39,7 @@ impl MessageRepository {
             conversation_id: Set(*conversation_id),
             content: Set(user_content),
             role: Set(MessageRole::User.to_string()),
+            model_id: Set(model_id.clone()),
             ..Default::default()
         };
         let new_message_user = new_message_user.insert(self.db.as_ref()).await?;
@@ -51,6 +53,7 @@ impl MessageRepository {
             generation_tps: Set(Some(stats.generation_tps)),
             generation_duration: Set(Some(stats.generation_duration)),
             role: Set(MessageRole::Assistant.to_string()),
+            model_id: Set(model_id),
             ..Default::default()
         };
         let new_message_assistant = new_message_assistant.insert(self.db.as_ref()).await?;

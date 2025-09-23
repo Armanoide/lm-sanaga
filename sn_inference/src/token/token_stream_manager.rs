@@ -6,8 +6,12 @@ use crate::token::token_generator::TokenGenerator;
 use crate::tokenizer::tokenizer::Tokenizer;
 use crossbeam::channel::{bounded, Receiver, Sender};
 use rayon::prelude::*;
+use sn_core::server::payload::backend::run_model_metadata_response_sse::RunModelMetadataResponseSSE;
+use sn_core::server::payload::backend::text_generated_metadata_response_sse::{
+    IntoMessageStat, TextGeneratedMetadataResponseSSE,
+};
 use sn_core::types::message_stats::{MessageStats, MessageStatsBuilder};
-use sn_core::types::stream_data::StreamData;
+use sn_core::types::stream_data::{StreamData, StreamDataContent};
 use sn_core::utils::rw_lock::RwLockExt;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
@@ -129,11 +133,15 @@ impl TokenStreamManager {
         } else {
             return Err(Error::TokenGenerationStartFailure);
         }
-        println!("cache size: {}", cache.cache_size());
+        debug!("cache size: {}", cache.cache_size());
         Ok(self.get_text())
     }
 
-    pub fn get_average_stats(&self) -> Result<Option<MessageStats>> {
+    pub fn get_average_stats(
+        &self,
+        conversation_id: Option<i32>,
+        callback: Option<PromptStreamCallback>,
+    ) -> Result<Option<MessageStats>> {
         if let Some(token_generator) = &self.token_generator {
             let total_generated_tokens = {
                 let context = "reading total_generated_tokens from token_generator";
@@ -152,7 +160,11 @@ impl TokenStreamManager {
                 .with_generation_duration(generation_duration)
                 .with_prefill_duration(prefill_duration)
                 .build();
-
+            if let Some(cb) = &callback {
+                let _ = cb.send(StreamData::for_text_generated_metadata_sse_response(
+                    stats.clone().into_message_stat(conversation_id),
+                ));
+            }
             Ok(Some(stats))
         } else {
             Ok(None)

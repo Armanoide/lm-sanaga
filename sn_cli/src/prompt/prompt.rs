@@ -35,7 +35,7 @@ fn handle_response_stream_data(stream_data: &StreamData, response_info: &mut Res
             typewriter(&content, 5);
         }
         StreamDataContent::TextGeneratedMetadataResponseSSE(content) => {
-            response_info.metadata.conversation_id = Some(content.conversation_id);
+            response_info.metadata.conversation_id = content.conversation_id;
             response_info.metadata.generation_tps = content.generation_tps;
             response_info.metadata.prompt_tps = content.prompt_tps;
         }

@@ -193,8 +193,8 @@ impl ModelRuntime {
         }
 
         let mut stream = TokenStreamManager::new(model.clone(), tokenizer.clone());
-        let generated_text = stream.generate_text(prompt_ids, cache, callback)?;
-        let stats = stream.get_average_stats()?;
+        let generated_text = stream.generate_text(prompt_ids, cache, callback.clone())?;
+        let stats = stream.get_average_stats(conversation.id, callback)?;
 
         Ok((generated_text, stats))
     }

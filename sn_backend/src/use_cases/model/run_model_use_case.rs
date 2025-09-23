@@ -52,7 +52,7 @@ impl RunModelUseCase {
             }
             let model_id = run_model_result?;
             if let Some(tx) = tx {
-                let _ = tx.send(StreamData::for_metadata_text_generated_sse_response(
+                let _ = tx.send(StreamData::for_metadata_run_model_sse_response(
                     RunModelMetadataResponseSSE {
                         model_id: model_id.clone().into(),
                     },
