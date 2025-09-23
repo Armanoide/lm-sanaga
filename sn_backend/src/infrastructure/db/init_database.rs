@@ -1,13 +1,19 @@
 use crate::error::Result;
 use migration::{Migrator, MigratorTrait};
-use sea_orm::{ConnectionTrait, Database, DatabaseConnection, DbBackend, Statement};
-use tracing::info;
+use sea_orm::{
+    ConnectOptions, ConnectionTrait, Database, DatabaseConnection, DbBackend, Statement,
+};
+use tracing::{info, log::LevelFilter};
 
 pub async fn init_database(
     database_name: &str,
     database_url: &str,
 ) -> Result<Option<DatabaseConnection>> {
-    let db = Database::connect(database_url).await?;
+    let mut opt = ConnectOptions::new(database_url);
+    opt.sqlx_logging(false)
+        .sqlx_logging_level(LevelFilter::Error);
+
+    let db = Database::connect(opt).await?;
 
     let db = match db.get_database_backend() {
         DbBackend::MySql => {
